@@ -6,31 +6,34 @@ export default function Home() {
   const [status, setStatus] = useState("Ready for orders, Sir.");
 
   // 🗣️ JARVIS VOICE OUTPUT (Tuned for Free High Quality)
-  const speak = (text: string) => {
-    // 1. Stop any current talking
+const speak = (text: string) => {
     window.speechSynthesis.cancel();
+    const speech = new SpeechSynthesisUtterance(text);
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    speech.rate = 0.85;
+    speech.pitch = 0.8;
+    speech.volume = 1;
 
-    // 2. JARVIS SETTINGS (Makes it sound less like a robot)
-    utterance.rate = 0.9;  // Slightly slower = more professional
-    utterance.pitch = 0.8; // Lower pitch = more masculine/smooth
-    utterance.volume = 1;
+    // Helper to find and set the voice
+    const setVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const jarvisVoice = voices.find(v => 
+        v.name.includes("Google UK English Male") || 
+        v.name.includes("Microsoft James") || 
+        v.name.includes("Arthur") ||
+        v.name.includes("English United Kingdom")
+      );
+      if (jarvisVoice) speech.voice = jarvisVoice;
+      window.speechSynthesis.speak(speech);
+    };
 
-    // 3. Try to find a "Premium" sounding voice on the user's system
-    const voices = window.speechSynthesis.getVoices();
-    // This looks for "Google UK English Male" or "Arthur" or "Microsoft James"
-    const bestVoice = voices.find(v => 
-      v.name.includes("UK English Male") || 
-      v.name.includes("Google US English") || 
-      v.name.includes("Male")
-    );
-
-    if (bestVoice) {
-      utterance.voice = bestVoice;
+    // If voices are already loaded, just speak. 
+    // If not, wait for them to load first.
+    if (window.speechSynthesis.getVoices().length !== 0) {
+      setVoice();
+    } else {
+      window.speechSynthesis.onvoiceschanged = setVoice;
     }
-
-    window.speechSynthesis.speak(utterance);
   };
 
   // 🧠 AI REQUEST HANDLER
