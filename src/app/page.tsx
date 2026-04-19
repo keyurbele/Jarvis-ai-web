@@ -3,9 +3,19 @@ import { useState } from "react";
 
 export default function Home() {
   const [active, setActive] = useState(false);
-  const [status, setStatus] = useState("Jarvis Idle");
+  const [status, setStatus] = useState("Say something...");
 
-  const askJarvis = async () => {
+  // 🗣️ STEP 2: JARVIS VOICE OUTPUT
+  const speak = (text: string) => {
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.rate = 1;
+    speech.pitch = 1;
+    speech.volume = 1;
+    window.speechSynthesis.speak(speech);
+  };
+
+  // 🧠 STEP 1: AI REQUEST HANDLER
+  const askJarvis = async (input: string) => {
     setActive(true);
     setStatus("Thinking...");
 
@@ -13,38 +23,69 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Hello Jarvis!" }), 
+        body: JSON.stringify({ message: input }),
       });
 
       const data = await res.json();
-      setStatus(data.reply); // This displays the AI's answer!
+      setStatus(data.reply);
+      speak(data.reply); // Jarvis speaks the answer back!
     } catch (error) {
-      setStatus("Error: Cannot reach brain.");
+      setStatus("I’m having trouble connecting.");
     } finally {
       setActive(false);
     }
   };
 
+  // 🎤 STEP 3: REAL VOICE INPUT
+  const startListening = () => {
+    const SpeechRecognition =
+      (window as any).webkitSpeechRecognition ||
+      (window as any).SpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Your browser does not support voice recognition. Try Chrome.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    setStatus("Listening...");
+    setActive(true);
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setStatus(`You said: "${transcript}"`);
+      askJarvis(transcript); // Sends what you said to the AI
+    };
+
+    recognition.onerror = () => {
+      setStatus("Speech error. Try again.");
+      setActive(false);
+    };
+
+    recognition.start();
+  };
+
   return (
-    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4 text-center">
-      {/* THE ORB */}
+    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4">
+      {/* THE ANIMATED ORB */}
       <div 
-        className={`w-40 h-40 rounded-full transition-all duration-500 mb-10 ${
-          active ? "bg-blue-500 shadow-[0_0_80px_#3b82f6] scale-110" : "bg-gray-600"
+        className={`w-48 h-48 rounded-full transition-all duration-500 mb-10 ${
+          active ? "bg-blue-500 shadow-[0_0_100px_#3b82f6] scale-110" : "bg-gray-700"
         }`} 
       />
       
-      {/* JARVIS STATUS/REPLY */}
-      <p className="text-xl font-mono text-blue-400 mb-10 max-w-lg">
+      {/* STATUS DISPLAY */}
+      <p className="text-2xl font-mono text-blue-400 mb-10 text-center max-w-2xl">
         {status}
       </p>
 
-      {/* THE TRIGGER */}
+      {/* VOICE TRIGGER */}
       <button 
-        onClick={askJarvis}
-        className="px-10 py-4 bg-white text-black rounded-full font-bold hover:bg-blue-300 transition-all active:scale-95"
+        onClick={startListening}
+        className="px-12 py-5 bg-white text-black rounded-full font-bold hover:bg-blue-400 transition-all active:scale-95 shadow-lg"
       >
-        ASK JARVIS
+        TALK TO JARVIS
       </button>
     </main>
   );
