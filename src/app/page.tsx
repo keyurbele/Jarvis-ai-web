@@ -3,49 +3,37 @@ import { useState } from "react";
 
 export default function Home() {
   const [active, setActive] = useState(false);
-  const [status, setStatus] = useState("Say something...");
+  const [status, setStatus] = useState("Ready for orders, Sir.");
 
-  // 🗣️ STEP 2: JARVIS VOICE OUTPUT
-const speak = async (text: string) => {
-    // 1. Kill any robotic voices still talking
+  // 🗣️ JARVIS VOICE OUTPUT (Tuned for Free High Quality)
+  const speak = (text: string) => {
+    // 1. Stop any current talking
     window.speechSynthesis.cancel();
 
-    try {
-      // 2. We use a high-quality free speech engine (Sherpa-ONNX is a great 2026 alternative)
-      // This is a direct "streaming" URL that doesn't require a key
-      const voiceUrl = `https://api.voicerss.org/?key=YOUR_FREE_KEY&hl=en-gb&v=Harry&src=${encodeURIComponent(text)}`;
-      
-      // NOTE: VoiceRSS has a 350-request-per-day FREE limit (huge for one person!)
-      // If you want 100% no-limit, we stick to the browser-based piper-js.
-      
-      const audio = new Audio(voiceUrl);
-      await audio.play();
-    } catch (err) {
-      // Fallback to the default system voice if the high-quality one fails
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9; // Makes the robot sound a bit more "Jarvis-like"
-      utterance.pitch = 1;
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+    const utterance = new SpeechSynthesisUtterance(text);
 
-      const data = await res.json();
+    // 2. JARVIS SETTINGS (Makes it sound less like a robot)
+    utterance.rate = 0.9;  // Slightly slower = more professional
+    utterance.pitch = 0.8; // Lower pitch = more masculine/smooth
+    utterance.volume = 1;
 
-      if (data?.audio) {
-        const audio = new Audio(data.audio);
-        await audio.play();
-        return; // ✅ Success! Stop here so the robot doesn't start.
-      }
-    } catch (err) {
-      console.error("Kokoro failed, falling back to robot:", err);
+    // 3. Try to find a "Premium" sounding voice on the user's system
+    const voices = window.speechSynthesis.getVoices();
+    // This looks for "Google UK English Male" or "Arthur" or "Microsoft James"
+    const bestVoice = voices.find(v => 
+      v.name.includes("UK English Male") || 
+      v.name.includes("Google US English") || 
+      v.name.includes("Male")
+    );
+
+    if (bestVoice) {
+      utterance.voice = bestVoice;
     }
 
-    // 2. Only if the AI voice fails above, do we use the robot
-    const fallback = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(fallback);
+    window.speechSynthesis.speak(utterance);
   };
 
-  // 🧠 STEP 1: AI REQUEST HANDLER
+  // 🧠 AI REQUEST HANDLER
   const askJarvis = async (input: string) => {
     setActive(true);
     setStatus("Thinking...");
@@ -59,22 +47,22 @@ const speak = async (text: string) => {
 
       const data = await res.json();
       setStatus(data.reply);
-      speak(data.reply); // Jarvis speaks the answer back!
+      speak(data.reply); // Jarvis speaks!
     } catch (error) {
-      setStatus("I’m having trouble connecting.");
+      setStatus("System error. Check your connection.");
     } finally {
       setActive(false);
     }
   };
 
-  // 🎤 STEP 3: REAL VOICE INPUT
+  // 🎤 MICROPHONE INPUT
   const startListening = () => {
     const SpeechRecognition =
       (window as any).webkitSpeechRecognition ||
       (window as any).SpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Your browser does not support voice recognition. Try Chrome.");
+      alert("Please use Chrome for voice features.");
       return;
     }
 
@@ -85,12 +73,12 @@ const speak = async (text: string) => {
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setStatus(`You said: "${transcript}"`);
-      askJarvis(transcript); // Sends what you said to the AI
+      setStatus(`You: "${transcript}"`);
+      askJarvis(transcript);
     };
 
     recognition.onerror = () => {
-      setStatus("Speech error. Try again.");
+      setStatus("I didn't catch that.");
       setActive(false);
     };
 
@@ -102,19 +90,19 @@ const speak = async (text: string) => {
       {/* THE ANIMATED ORB */}
       <div 
         className={`w-48 h-48 rounded-full transition-all duration-500 mb-10 ${
-          active ? "bg-blue-500 shadow-[0_0_100px_#3b82f6] scale-110" : "bg-gray-700"
+          active ? "bg-blue-500 shadow-[0_0_100px_#3b82f6] scale-110" : "bg-gray-800 border-2 border-blue-900"
         }`} 
       />
       
       {/* STATUS DISPLAY */}
-      <p className="text-2xl font-mono text-blue-400 mb-10 text-center max-w-2xl">
+      <p className="text-2xl font-mono text-blue-400 mb-10 text-center max-w-2xl min-h-[3rem]">
         {status}
       </p>
 
       {/* VOICE TRIGGER */}
       <button 
         onClick={startListening}
-        className="px-12 py-5 bg-white text-black rounded-full font-bold hover:bg-blue-400 transition-all active:scale-95 shadow-lg"
+        className="px-12 py-5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-500 transition-all active:scale-95 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
       >
         TALK TO JARVIS
       </button>
