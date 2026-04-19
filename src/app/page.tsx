@@ -6,37 +6,40 @@ export default function Home() {
   const [status, setStatus] = useState("Ready for orders, Sir.");
 
   // 🗣️ JARVIS VOICE OUTPUT (Natural Human-like Tuning)
-  const speak = (text: string) => {
-    window.speechSynthesis.cancel();
-    const speech = new SpeechSynthesisUtterance(text);
+ // Inside your Home component in page.tsx
 
-    // Human-like rhythm
-    speech.rate = 0.88; 
-    speech.pitch = 0.9; 
-    speech.volume = 1;
+const askJarvis = async (input: string) => {
+  setActive(true);
+  setStatus("Thinking...");
 
-    const setVoice = () => {
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Attempt to find the most "Jarvis-like" British male voice
-      const jarvisVoice = voices.find(v => 
-        v.name.includes("Google UK English Male") || 
-        v.name.includes("Microsoft James") || 
-        v.name.includes("Arthur") || 
-        v.name.includes("Daniel")
-      );
+  // 1. Get existing memories from the browser's disk
+  const rawMemory = localStorage.getItem("jarvis_memory") || "";
+  
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // We send the memory ALONG with the new message
+      body: JSON.stringify({ message: input, memory: rawMemory }),
+    });
 
-      if (jarvisVoice) speech.voice = jarvisVoice;
-      
-      window.speechSynthesis.speak(speech);
-    };
+    const data = await res.json();
+    setStatus(data.reply);
+    speak(data.reply);
 
-    if (window.speechSynthesis.getVoices().length !== 0) {
-      setVoice();
-    } else {
-      window.speechSynthesis.onvoiceschanged = setVoice;
+    // 2. SECRET SAUCE: If you said "Remember...", save it locally!
+    if (input.toLowerCase().includes("remember") || input.toLowerCase().includes("my name is")) {
+      const updatedMemory = rawMemory + ". " + input;
+      localStorage.setItem("jarvis_memory", updatedMemory);
+      console.log("Memory Updated:", updatedMemory);
     }
-  };
+
+  } catch (error) {
+    setStatus("System error, Sir.");
+  } finally {
+    setActive(false);
+  }
+};
 
   // 🧠 AI REQUEST HANDLER
   const askJarvis = async (input: string) => {
