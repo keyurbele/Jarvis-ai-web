@@ -5,30 +5,28 @@ export default function Home() {
   const [active, setActive] = useState(false);
   const [status, setStatus] = useState("Ready for orders, Sir.");
 
-  // 🗣️ JARVIS VOICE OUTPUT (Tuned for Free High Quality)
-const speak = (text: string) => {
+  // 🗣️ JARVIS VOICE OUTPUT
+  const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(text);
 
-    speech.rate = 0.85;
-    speech.pitch = 0.8;
+    speech.rate = 0.88; 
+    speech.pitch = 0.9; 
     speech.volume = 1;
 
-    // Helper to find and set the voice
     const setVoice = () => {
       const voices = window.speechSynthesis.getVoices();
       const jarvisVoice = voices.find(v => 
         v.name.includes("Google UK English Male") || 
         v.name.includes("Microsoft James") || 
-        v.name.includes("Arthur") ||
-        v.name.includes("English United Kingdom")
+        v.name.includes("Arthur") || 
+        v.name.includes("Daniel")
       );
+
       if (jarvisVoice) speech.voice = jarvisVoice;
       window.speechSynthesis.speak(speech);
     };
 
-    // If voices are already loaded, just speak. 
-    // If not, wait for them to load first.
     if (window.speechSynthesis.getVoices().length !== 0) {
       setVoice();
     } else {
@@ -50,7 +48,7 @@ const speak = (text: string) => {
 
       const data = await res.json();
       setStatus(data.reply);
-      speak(data.reply); // Jarvis speaks!
+      speak(data.reply);
     } catch (error) {
       setStatus("System error. Check your connection.");
     } finally {
@@ -90,12 +88,23 @@ const speak = (text: string) => {
 
   return (
     <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4">
-      {/* THE ANIMATED ORB */}
+      
+      {/* 🧿 THE HIGH-TECH ANIMATED ORB */}
       <div 
-        className={`w-48 h-48 rounded-full transition-all duration-500 mb-10 ${
-          active ? "bg-blue-500 shadow-[0_0_100px_#3b82f6] scale-110" : "bg-gray-800 border-2 border-blue-900"
+        className={`w-48 h-48 rounded-full transition-all duration-700 mb-10 border-4 relative flex items-center justify-center ${
+          active 
+          ? "bg-cyan-500 shadow-[0_0_80px_#22d3ee] scale-110 animate-pulse border-white/20" 
+          : "bg-slate-900 shadow-[0_0_20px_#000] border-cyan-900/50"
         }`} 
-      />
+      >
+        {/* Spinning inner ring */}
+        {active && (
+          <div className="absolute inset-0 rounded-full border-t-2 border-white animate-spin opacity-50" />
+        )}
+        
+        {/* Inner core */}
+        <div className={`w-12 h-12 rounded-full bg-white opacity-20 ${active ? "animate-ping" : "hidden"}`} />
+      </div>
       
       {/* STATUS DISPLAY */}
       <p className="text-2xl font-mono text-blue-400 mb-10 text-center max-w-2xl min-h-[3rem]">
