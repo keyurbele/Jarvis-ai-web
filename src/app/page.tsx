@@ -7,13 +7,16 @@ export default function Home() {
 
   // 🗣️ STEP 2: JARVIS VOICE OUTPUT
 const speak = async (text: string) => {
+    // 1. Stop any old robot voices from talking over the new one
+    window.speechSynthesis.cancel(); 
+
     try {
       const res = await fetch("https://api.kokorotts.com/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: text,
-          voice: "af_sky", // A clear, professional voice
+          voice: "af_sky", // This is a specific high-quality Kokoro voice
         }),
       });
 
@@ -21,14 +24,16 @@ const speak = async (text: string) => {
 
       if (data?.audio) {
         const audio = new Audio(data.audio);
-        audio.play();
+        await audio.play();
+        return; // ✅ Success! Stop here so the robot doesn't start.
       }
     } catch (err) {
-      console.log("Voice Error:", err);
-      // Fallback if the API is down
-      const fallback = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.speak(fallback);
+      console.error("Kokoro failed, falling back to robot:", err);
     }
+
+    // 2. Only if the AI voice fails above, do we use the robot
+    const fallback = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(fallback);
   };
 
   // 🧠 STEP 1: AI REQUEST HANDLER
