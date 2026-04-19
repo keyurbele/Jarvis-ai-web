@@ -31,12 +31,19 @@ export default function Home() {
     }
   };
 
-  // 🧠 AI REQUEST HANDLER (Only ONE definition now!)
+  // 🧠 AI REQUEST HANDLER
   const askJarvis = async (input: string) => {
+    // 🛑 STOP COMMAND CHECK (Must be inside the function)
+    if (input.toLowerCase() === "stop" || input.toLowerCase() === "be quiet" || input.toLowerCase() === "shut up") {
+      window.speechSynthesis.cancel();
+      setStatus("As you wish, Sir.");
+      setActive(false);
+      return; 
+    }
+
     setActive(true);
     setStatus("Thinking...");
 
-    // Safe check for localStorage during build
     const rawMemory = typeof window !== "undefined" ? localStorage.getItem("jarvis_memory") || "" : "";
 
     try {
@@ -64,6 +71,10 @@ export default function Home() {
 
   // 🎤 MICROPHONE INPUT
   const startListening = () => {
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.cancel(); // Stop talking when I start listening
+    }
+
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognition) return alert("Use Chrome, Sir.");
 
