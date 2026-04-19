@@ -2,7 +2,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "Jarvis AI",
-  description: "Jarvis Web Interface",
+  description: "My personal AI assistant",
 };
 
 export default function RootLayout({
@@ -12,7 +12,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="bg-black text-white antialiased">
+        {/* This "children" part is where your orb and button from page.tsx live */}
+        {children}
+      </body>
     </html>
   );
 }
