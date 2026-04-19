@@ -5,17 +5,20 @@ export default function Home() {
   const [active, setActive] = useState(false);
   const [status, setStatus] = useState("Ready for orders, Sir.");
 
-  // 🗣️ JARVIS VOICE OUTPUT
+  // 🗣️ JARVIS VOICE OUTPUT (Natural Human-like Tuning)
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(text);
 
+    // Human-like rhythm
     speech.rate = 0.88; 
     speech.pitch = 0.9; 
     speech.volume = 1;
 
     const setVoice = () => {
       const voices = window.speechSynthesis.getVoices();
+      
+      // Attempt to find the most "Jarvis-like" British male voice
       const jarvisVoice = voices.find(v => 
         v.name.includes("Google UK English Male") || 
         v.name.includes("Microsoft James") || 
@@ -24,6 +27,7 @@ export default function Home() {
       );
 
       if (jarvisVoice) speech.voice = jarvisVoice;
+      
       window.speechSynthesis.speak(speech);
     };
 
@@ -48,9 +52,9 @@ export default function Home() {
 
       const data = await res.json();
       setStatus(data.reply);
-      speak(data.reply);
+      speak(data.reply); 
     } catch (error) {
-      setStatus("System error. Check your connection.");
+      setStatus("System error, Sir. I'm unable to connect.");
     } finally {
       setActive(false);
     }
@@ -79,7 +83,7 @@ export default function Home() {
     };
 
     recognition.onerror = () => {
-      setStatus("I didn't catch that.");
+      setStatus("I didn't catch that, Sir.");
       setActive(false);
     };
 
@@ -87,7 +91,7 @@ export default function Home() {
   };
 
   return (
-    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4">
+    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4 overflow-hidden">
       
       {/* 🧿 THE HIGH-TECH ANIMATED ORB */}
       <div 
@@ -99,24 +103,26 @@ export default function Home() {
       >
         {/* Spinning inner ring */}
         {active && (
-          <div className="absolute inset-0 rounded-full border-t-2 border-white animate-spin opacity-50" />
+          <div className="absolute inset-0 rounded-full border-t-2 border-white animate-spin opacity-40" />
         )}
         
-        {/* Inner core */}
-        <div className={`w-12 h-12 rounded-full bg-white opacity-20 ${active ? "animate-ping" : "hidden"}`} />
+        {/* Pulsing Core */}
+        <div className={`w-16 h-16 rounded-full bg-white opacity-10 ${active ? "animate-ping" : "hidden"}`} />
       </div>
       
       {/* STATUS DISPLAY */}
-      <p className="text-2xl font-mono text-blue-400 mb-10 text-center max-w-2xl min-h-[3rem]">
-        {status}
-      </p>
+      <div className="min-h-[4rem] flex items-center justify-center">
+        <p className="text-2xl font-mono text-cyan-400 mb-10 text-center max-w-2xl tracking-tight">
+          {status}
+        </p>
+      </div>
 
       {/* VOICE TRIGGER */}
       <button 
         onClick={startListening}
-        className="px-12 py-5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-500 transition-all active:scale-95 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
+        className="px-12 py-5 bg-transparent border-2 border-cyan-500 text-cyan-400 rounded-full font-bold hover:bg-cyan-500 hover:text-black transition-all active:scale-95 shadow-[0_0_15px_rgba(34,211,238,0.3)]"
       >
-        TALK TO JARVIS
+        INITIALIZE COMMAND
       </button>
     </main>
   );
