@@ -13,12 +13,13 @@ export async function POST(req: Request) {
           Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "llama3-8b-8192",
+          // UPDATED MODEL: llama3-8b-8192 is decommissioned.
+          // Using llama-3.3-70b-versatile for high quality or llama-3.1-8b-instant for speed.
+          model: "llama-3.3-70b-versatile", 
           messages: [
             {
               role: "system",
-              content:
-                "You are Jarvis. You respond short, clear, confident.",
+              content: "You are Jarvis. You respond short, clear, confident.",
             },
             {
               role: "user",
@@ -31,18 +32,23 @@ export async function POST(req: Request) {
 
     const data = await response.json();
 
-    console.log("GROQ RESPONSE:", data); // IMPORTANT DEBUG
+    console.log("GROQ RESPONSE:", data);
+
+    // If Groq returns an error, this will help you see it in the UI instead of a generic "No response"
+    if (data.error) {
+      return NextResponse.json({ reply: `Groq Error: ${data.error.message}` });
+    }
 
     const reply =
       data?.choices?.[0]?.message?.content ||
-      "I didn't get a response.";
+      "I am connected, but I have no words.";
 
     return NextResponse.json({ reply });
   } catch (error) {
     console.log("ERROR:", error);
 
     return NextResponse.json({
-      reply: "Server error. Jarvis is offline.",
+      reply: "System failure. Jarvis is offline.",
     });
   }
 }
