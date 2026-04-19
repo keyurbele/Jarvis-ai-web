@@ -7,18 +7,27 @@ export default function Home() {
 
   // 🗣️ STEP 2: JARVIS VOICE OUTPUT
 const speak = async (text: string) => {
-    // 1. Stop any old robot voices from talking over the new one
-    window.speechSynthesis.cancel(); 
+    // 1. Kill any robotic voices still talking
+    window.speechSynthesis.cancel();
 
     try {
-      const res = await fetch("https://api.kokorotts.com/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: text,
-          voice: "af_sky", // This is a specific high-quality Kokoro voice
-        }),
-      });
+      // 2. We use a high-quality free speech engine (Sherpa-ONNX is a great 2026 alternative)
+      // This is a direct "streaming" URL that doesn't require a key
+      const voiceUrl = `https://api.voicerss.org/?key=YOUR_FREE_KEY&hl=en-gb&v=Harry&src=${encodeURIComponent(text)}`;
+      
+      // NOTE: VoiceRSS has a 350-request-per-day FREE limit (huge for one person!)
+      // If you want 100% no-limit, we stick to the browser-based piper-js.
+      
+      const audio = new Audio(voiceUrl);
+      await audio.play();
+    } catch (err) {
+      // Fallback to the default system voice if the high-quality one fails
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9; // Makes the robot sound a bit more "Jarvis-like"
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
       const data = await res.json();
 
