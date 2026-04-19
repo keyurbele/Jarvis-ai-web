@@ -6,12 +6,29 @@ export default function Home() {
   const [status, setStatus] = useState("Say something...");
 
   // 🗣️ STEP 2: JARVIS VOICE OUTPUT
-  const speak = (text: string) => {
-    const speech = new SpeechSynthesisUtterance(text);
-    speech.rate = 1;
-    speech.pitch = 1;
-    speech.volume = 1;
-    window.speechSynthesis.speak(speech);
+const speak = async (text: string) => {
+    try {
+      const res = await fetch("https://api.kokorotts.com/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: text,
+          voice: "af_sky", // A clear, professional voice
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data?.audio) {
+        const audio = new Audio(data.audio);
+        audio.play();
+      }
+    } catch (err) {
+      console.log("Voice Error:", err);
+      // Fallback if the API is down
+      const fallback = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(fallback);
+    }
   };
 
   // 🧠 STEP 1: AI REQUEST HANDLER
