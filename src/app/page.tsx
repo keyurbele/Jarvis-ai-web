@@ -12,11 +12,11 @@ export default function Home() {
   const animationRef = useRef<any>(null);
   const stateRef = useRef<JarvisState>("IDLE");
 
+  // Keep stateRef in sync so listeners can read the current state
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  // 🧠 START AUDIO VISUALIZER (Fixed: Now triggers on click)
   const startAudio = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -24,7 +24,6 @@ export default function Home() {
       const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-
       analyser.fftSize = 256;
       source.connect(analyser);
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -33,8 +32,7 @@ export default function Home() {
         analyser.getByteFrequencyData(dataArray);
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        const avg = sum / dataArray.length;
-        setVolume(avg / 100);
+        setVolume((sum / dataArray.length) / 100);
         animationRef.current = requestAnimationFrame(update);
       };
       update();
@@ -47,10 +45,11 @@ export default function Home() {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(text);
     speech.onstart = () => setState("SPEAKING");
-    speech.onend = () => setState("LISTENING");
+    speech.onend = () => {
+      if (stateRef.current === "SPEAKING") setState("LISTENING");
+    };
     speech.rate = 0.9;
     
-    // Pick a Jarvis-like voice if available
     const voices = window.speechSynthesis.getVoices();
     const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male"));
     if (jarvisVoice) speech.voice = jarvisVoice;
@@ -77,8 +76,6 @@ export default function Home() {
 
   const startSystem = () => {
     if (state !== "IDLE") return;
-    
-    // Start Visuals and Mic together on click
     startAudio(); 
 
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -86,12 +83,26 @@ export default function Home() {
     recognitionRef.current = recognition;
     recognition.lang = "en-US";
     recognition.continuous = true;
+    recognition.interimResults = true; // MUST be true to catch "Stop" mid-sentence
 
     recognition.onresult = (event: any) => {
-      const text = event.results[event.results.length - 1][0].transcript.toLowerCase();
-      if (stateRef.current === "LISTENING") {
-        setStatus(`"${text}"`);
-        askJarvisAI(text);
+      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+      const isFinal = event.results[event.results.length - 1].isFinal;
+
+      // --- INTERRUPT LOGIC ---
+      if (stateRef.current === "SPEAKING" || stateRef.current === "THINKING") {
+        if (transcript.includes("stop") || transcript.includes("shutup") || transcript.includes("jarvis") || transcript.includes("wait")) {
+          window.speechSynthesis.cancel();
+          setState("LISTENING");
+          setStatus("Standing by, Sir.");
+          return;
+        }
+      }
+
+      // --- NORMAL PROCESSING ---
+      if (isFinal && stateRef.current === "LISTENING") {
+        setStatus(`"${transcript}"`);
+        askJarvisAI(transcript);
       }
     };
 
@@ -104,15 +115,14 @@ export default function Home() {
     setStatus("Neural link established.");
   };
 
-  // 🧿 DYNAMIC ORB
   const orbScale = 1 + volume * 0.8;
   const glow = volume * 100;
   const getColor = () => {
     switch (state) {
-      case "LISTENING": return "34,197,94"; // Green
-      case "THINKING":  return "251,191,36"; // Yellow
-      case "SPEAKING":  return "34,211,238"; // Cyan
-      default:          return "148,163,184"; // Gray
+      case "LISTENING": return "34,197,94";
+      case "THINKING":  return "251,191,36";
+      case "SPEAKING":  return "34,211,238";
+      default:          return "148,163,184";
     }
   };
 
@@ -131,19 +141,19 @@ export default function Home() {
         <div className="w-24 h-24 rounded-full bg-white/10 animate-pulse" />
       </div>
 
-      <div className="mt-16 text-center h-24">
-        <p className="text-[10px] tracking-[0.4em] text-gray-500 mb-2">SYSTEM STATE: {state}</p>
+      <div className="mt-16 text-center h-24 px-6">
+        <p className="text-[10px] tracking-[0.4em] text-gray-500 mb-2 uppercase">Core State: {state}</p>
         <p className="text-cyan-400 text-lg max-w-xl italic">{status}</p>
       </div>
 
-      <button
-        onClick={startSystem}
-        className={`mt-10 px-10 py-4 border transition-all text-xs tracking-[0.3em] ${
-          state === "IDLE" ? "border-cyan-500 text-cyan-400 hover:bg-cyan-500/10" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        INITIALIZE CORE
-      </button>
+      {state === "IDLE" && (
+        <button
+          onClick={startSystem}
+          className="mt-10 px-10 py-4 border border-cyan-500 text-cyan-400 hover:bg-cyan-500/10 transition-all text-xs tracking-[0.3em]"
+        >
+          INITIALIZE CORE
+        </button>
+      )}
     </main>
   );
 }
