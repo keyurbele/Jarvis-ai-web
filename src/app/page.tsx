@@ -4,12 +4,22 @@ import { useState } from "react";
 export default function Home() {
   const [active, setActive] = useState(false);
   const [status, setStatus] = useState("Ready for orders, Sir.");
+  const [jarvisIsSpeaking, setJarvisIsSpeaking] = useState(false);
 
   // 🗣️ JARVIS VOICE OUTPUT
   const speak = (text: string) => {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
+    
     const speech = new SpeechSynthesisUtterance(text);
+    
+    // 🔒 THE LOCK: Stop Jarvis from hearing himself
+    speech.onstart = () => setJarvisIsSpeaking(true);
+    speech.onend = () => {
+      // Small delay after speaking to let room echoes die down
+      setTimeout(() => setJarvisIsSpeaking(false), 600);
+    };
+
     speech.rate = 0.88;
     speech.pitch = 0.9;
 
@@ -61,6 +71,7 @@ export default function Home() {
     // 1. COMMAND: STOP
     if (lower.includes("stop") || lower.includes("be quiet") || lower.includes("shut up")) {
       window.speechSynthesis.cancel();
+      setJarvisIsSpeaking(false);
       setStatus("As you wish, Sir.");
       setActive(false);
       return;
@@ -72,7 +83,6 @@ export default function Home() {
       localStorage.setItem("jarvis_memory", updatedMemory);
       setStatus("Saved to memory, Sir.");
       speak("I've made a note of that, Sir.");
-      setActive(false);
       return;
     }
 
@@ -80,7 +90,7 @@ export default function Home() {
     askJarvisAI(text, rawMemory);
   };
 
-  // 🎤 MICROPHONE INPUT (Speaker-Optimized)
+  // 🎤 MICROPHONE INPUT (Speaker & Loop Optimized)
   const startListening = () => {
     if (typeof window === "undefined") return;
 
@@ -96,17 +106,14 @@ export default function Home() {
       const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
       const isFinal = event.results[event.results.length - 1].isFinal;
 
-      // 🔊 SPEAKER INTERRUPT LOGIC
-      if (window.speechSynthesis.speaking) {
-        const stopTerms = ["stop", "jarvis", "wait", "shut up", "listen"];
-        const containsStopTerm = stopTerms.some(term => transcript.includes(term));
-
-        if (containsStopTerm || transcript.length > 20) { 
+      // 🛡️ THE MASTER FILTER
+      if (jarvisIsSpeaking) {
+        // If we hear "Stop" or "Jarvis" even while he talks, interrupt him!
+        if (transcript.includes("stop") || transcript.includes("jarvis") || transcript.includes("shut up")) {
           window.speechSynthesis.cancel();
-          console.log("Interrupting for you, Sir.");
-        } else {
-          return; // Ignore the echo of Jarvis's own voice
+          setJarvisIsSpeaking(false);
         }
+        return; // Ignore everything else while he speaks
       }
 
       if (isFinal) {
@@ -115,17 +122,21 @@ export default function Home() {
       }
     };
 
-    recognition.onend = () => { if (active) recognition.start(); };
+    recognition.onend = () => { 
+      // Keep ears open unless we explicitly turned off the system
+      if (active || status.includes("Ready")) recognition.start(); 
+    };
+
     recognition.start();
   };
 
   return (
     <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4 overflow-hidden">
       <div className={`w-48 h-48 rounded-full transition-all duration-700 mb-10 border-4 relative flex items-center justify-center ${
-          active ? "bg-cyan-500 shadow-[0_0_80px_#22d3ee] scale-110 animate-pulse border-white/20" : "bg-slate-900 border-cyan-900/50"
+          active || jarvisIsSpeaking ? "bg-cyan-500 shadow-[0_0_80px_#22d3ee] scale-110 animate-pulse border-white/20" : "bg-slate-900 border-cyan-900/50"
         }`}>
-        {active && <div className="absolute inset-0 rounded-full border-t-2 border-white animate-spin opacity-40" />}
-        <div className={`w-16 h-16 rounded-full bg-white opacity-10 ${active ? "animate-ping" : "hidden"}`} />
+        {(active || jarvisIsSpeaking) && <div className="absolute inset-0 rounded-full border-t-2 border-white animate-spin opacity-40" />}
+        <div className={`w-16 h-16 rounded-full bg-white opacity-10 ${active || jarvisIsSpeaking ? "animate-ping" : "hidden"}`} />
       </div>
 
       <div className="min-h-[4rem] flex items-center justify-center">
