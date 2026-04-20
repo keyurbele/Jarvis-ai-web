@@ -1,142 +1,155 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
+
+// 🚦 SYSTEM STATES
+type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 
 export default function Home() {
-  const [active, setActive] = useState(false);
+  const [state, setState] = useState<JarvisState>("IDLE");
   const [status, setStatus] = useState("Ready for orders, Sir.");
-  const [jarvisIsSpeaking, setJarvisIsSpeaking] = useState(false);
+  
+  const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef(true);
 
-  // 🗣️ JARVIS VOICE OUTPUT
+  // 🗣️ VOICE ENGINE
   const speak = (text: string) => {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
     
     const speech = new SpeechSynthesisUtterance(text);
     
-    speech.onstart = () => setJarvisIsSpeaking(true);
+    speech.onstart = () => setState("SPEAKING");
     speech.onend = () => {
-      setTimeout(() => setJarvisIsSpeaking(false), 600);
+      // Return to listening mode after a brief echo delay
+      setTimeout(() => setState("LISTENING"), 500);
     };
 
     speech.rate = 0.88;
     speech.pitch = 0.9;
 
     const voices = window.speechSynthesis.getVoices();
-    const jarvisVoice = voices.find((v) =>
-      v.name.includes("Google UK English Male") ||
-      v.name.includes("Microsoft James") ||
-      v.name.includes("Arthur")
-    );
+    const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male") || v.name.includes("Microsoft James"));
     if (jarvisVoice) speech.voice = jarvisVoice;
+    
     window.speechSynthesis.speak(speech);
   };
 
-  // 🧠 AI BRAIN
-  const askJarvisAI = async (input: string, memory: string) => {
-    setActive(true);
-    setStatus("Thinking...");
+  // 🧠 MEMORY ENGINE (Fact Indexed)
+  const saveMemory = (text: string) => {
+    const memory = JSON.parse(localStorage.getItem("jarvis_memory") || "[]");
+    const cleanedFact = text.replace(/remember|note that|my name is/gi, "").trim();
+    if (cleanedFact) {
+      memory.push(`[Fact]: ${cleanedFact}`);
+      localStorage.setItem("jarvis_memory", JSON.stringify(memory.slice(-10)));
+    }
+  };
+
+  // 🧠 AI ENGINE
+  const askJarvisAI = async (input: string) => {
+    setState("THINKING");
+    const memory = JSON.parse(localStorage.getItem("jarvis_memory") || "[]");
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, memory: memory }),
+        body: JSON.stringify({ message: input, memory: memory.slice(-5) }), 
       });
-
       const data = await res.json();
       setStatus(data.reply);
       speak(data.reply);
-    } catch (error) {
-      setStatus("System error, Sir.");
-    } finally {
-      setActive(false);
+    } catch {
+      setStatus("Neural link failure, Sir.");
+      setState("LISTENING");
     }
   };
 
-  // 🎯 INTENT DETECTOR
-  const handleInput = async (text: string) => {
+  // 🎯 INTENT ENGINE
+  const handleInput = (text: string) => {
     const lower = text.toLowerCase();
-    const rawMemory = typeof window !== "undefined" ? localStorage.getItem("jarvis_memory") || "" : "";
 
-    if (lower.includes("stop") || lower.includes("be quiet") || lower.includes("shut up")) {
+    if (lower.includes("stop") || lower.includes("be quiet")) {
       window.speechSynthesis.cancel();
-      setJarvisIsSpeaking(false);
-      setStatus("As you wish, Sir.");
+      setState("LISTENING");
       return;
     }
 
-    if (lower.includes("remember") || lower.includes("note that") || lower.includes("my name is")) {
-      const updatedMemory = rawMemory + ". " + text;
-      localStorage.setItem("jarvis_memory", updatedMemory);
-      setStatus("Saved to memory, Sir.");
-      speak("I've made a note of that, Sir.");
+    if (lower.includes("remember") || lower.includes("my name is")) {
+      saveMemory(text);
+      setStatus("Fact indexed, Sir.");
+      speak("I've added that to my database.");
       return;
     }
 
-    askJarvisAI(text, rawMemory);
+    askJarvisAI(text);
   };
 
-  // 🎤 MICROPHONE INPUT
+  // 🎤 SENSORY ENGINE (Microphone)
   const startListening = () => {
     if (typeof window === "undefined") return;
-
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SpeechRecognition) return alert("Use Chrome, Sir.");
-
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
     recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = true; // ⚡ CRITICAL FOR INTERRUPTS
+    recognition.interimResults = true;
 
     recognition.onresult = (event: any) => {
-      let interimTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const transcriptChunk = event.results[i][0].transcript.toLowerCase();
-        
-        // 🔊 INTERRUPT CHECK (Checks even while you are mid-sentence)
-        if (window.speechSynthesis.speaking || jarvisIsSpeaking) {
-          const interruptWords = ["jarvis", "stop", "shut up", "wait", "listen"];
-          if (interruptWords.some(word => transcriptChunk.includes(word))) {
+        const result = event.results[i];
+        const transcript = result[0].transcript.toLowerCase();
+        const confidence = result[0].confidence;
+
+        // Interrupt Logic
+        if (state === "SPEAKING" && result.isFinal && confidence > 0.65) {
+          if (["jarvis", "stop", "wait"].some(word => transcript.includes(word))) {
             window.speechSynthesis.cancel();
-            setJarvisIsSpeaking(false);
-            setStatus("Listening, Sir...");
-            return; 
+            setState("LISTENING");
+            return;
           }
         }
 
-        if (event.results[i].isFinal) {
-          setStatus(`You: "${transcriptChunk}"`);
-          handleInput(transcriptChunk);
+        // Process Command
+        if (result.isFinal && confidence > 0.75) {
+          setStatus(`"${transcript}"`);
+          handleInput(transcript);
         }
       }
     };
 
-    recognition.onend = () => {
-      // Auto-restart listening
-      recognition.start();
-    };
-
+    recognition.onend = () => { if (isListeningRef.current) setTimeout(() => recognition.start(), 300); };
     recognition.start();
-    setStatus("System Online, Sir.");
+    setState("LISTENING");
+    setStatus("System Online.");
+  };
+
+  // 🎨 UI ENGINE (State Mapping)
+  const getOrbStyle = () => {
+    switch (state) {
+      case "LISTENING": return "border-green-400 shadow-[0_0_50px_rgba(74,222,128,0.5)] bg-green-500/10";
+      case "THINKING":  return "border-amber-400 shadow-[0_0_70px_rgba(251,191,36,0.6)] bg-amber-500/20 animate-pulse scale-110";
+      case "SPEAKING":  return "border-cyan-400 shadow-[0_0_90px_rgba(34,211,238,0.7)] bg-cyan-500/20 animate-bounce scale-105";
+      default:          return "border-cyan-900/30 bg-slate-900/50";
+    }
   };
 
   return (
-    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4 overflow-hidden">
-      <div className={`w-48 h-48 rounded-full transition-all duration-700 mb-10 border-4 relative flex items-center justify-center ${
-          active || jarvisIsSpeaking ? "bg-cyan-500 shadow-[0_0_80px_#22d3ee] scale-110 animate-pulse border-white/20" : "bg-slate-900 border-cyan-900/50"
-        }`}>
-        {(active || jarvisIsSpeaking) && <div className="absolute inset-0 rounded-full border-t-2 border-white animate-spin opacity-40" />}
-        <div className={`w-16 h-16 rounded-full bg-white opacity-10 ${active || jarvisIsSpeaking ? "animate-ping" : "hidden"}`} />
+    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white p-4 overflow-hidden font-mono">
+      <div className={`w-56 h-56 rounded-full transition-all duration-700 border-2 relative flex items-center justify-center ${getOrbStyle()}`}>
+        <div className={`w-32 h-32 rounded-full border border-white/10 transition-all duration-500 ${state !== "IDLE" ? "opacity-100" : "opacity-0"}`} />
+        {state === "THINKING" && <div className="absolute inset-0 rounded-full border-t-2 border-amber-400 animate-spin" />}
       </div>
 
-      <div className="min-h-[4rem] flex items-center justify-center">
-        <p className="text-2xl font-mono text-cyan-400 mb-10 text-center max-w-2xl tracking-tight">
+      <div className="mt-12 text-center h-24">
+        <p className="text-[10px] tracking-[0.4em] text-cyan-800 uppercase font-bold mb-2">Neural State: {state}</p>
+        <p className="text-xl text-cyan-400 max-w-xl italic">
           {status}
         </p>
       </div>
 
-      <button onClick={startListening} className="px-12 py-5 bg-transparent border-2 border-cyan-500 text-cyan-400 rounded-full font-bold hover:bg-cyan-500 hover:text-black transition-all shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-        INITIALIZE COMMAND
+      <button onClick={startListening} className={`mt-10 px-8 py-3 border transition-all tracking-widest text-xs ${state === "IDLE" ? "border-cyan-500 text-cyan-500 hover:bg-cyan-500/10" : "border-transparent text-cyan-900 pointer-events-none"}`}>
+        {state === "IDLE" ? "[ INITIALIZE SYSTEM ]" : "[ SYSTEM ACTIVE ]"}
       </button>
     </main>
   );
