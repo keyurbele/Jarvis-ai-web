@@ -7,39 +7,71 @@ export default function Home() {
   const [state, setState] = useState<JarvisState>("IDLE");
   const [status, setStatus] = useState("Ready for orders, Sir.");
   
-  // Refs for logic that needs to bypass React's render-cycle "memory loss"
   const stateRef = useRef<JarvisState>("IDLE");
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(true);
 
-  // Keep stateRef in sync with state
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  // 🗣️ VOICE ENGINE
+  // 🗣️ VOICE ENGINE (You were missing this!)
   const speak = (text: string) => {
     if (typeof window === "undefined") return;
-    
-    window.speechSynthesis.cancel(); // Clear previous speech
+    window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(text);
     
     speech.onstart = () => setState("SPEAKING");
     speech.onend = () => {
-      // Delay slightly before listening again to avoid hearing own echo
       setTimeout(() => {
         if (stateRef.current === "SPEAKING") setState("LISTENING");
       }, 600);
     };
 
     speech.rate = 0.9;
-    speech.pitch = 1.0;
-
     const voices = window.speechSynthesis.getVoices();
-    const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male") || v.name.includes("Microsoft James"));
+    const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male"));
     if (jarvisVoice) speech.voice = jarvisVoice;
     
     window.speechSynthesis.speak(speech);
+  };
+
+  // 🧠 AI ENGINE (Merged into one robust version)
+  const askJarvisAI = async (input: string) => {
+    console.log("🚀 STARTING AI CALL for:", input);
+    setState("THINKING");
+
+    try {
+      const memory = JSON.parse(localStorage.getItem("jarvis_memory") || "[]");
+      
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input, memory: memory.slice(-5) }), 
+      });
+      
+      console.log("📡 SERVER STATUS:", res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("❌ SERVER ERROR TEXT:", errorText);
+        throw new Error(`Server status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log("🧠 DATA RECEIVED:", data);
+
+      if (data.reply) {
+        setStatus(data.reply);
+        speak(data.reply);
+      } else {
+        throw new Error("Empty reply from server");
+      }
+    } catch (err: any) {
+      console.error("🕵️ DETAILED CATCH ERROR:", err);
+      setStatus(`Connection lost: ${err.message}`);
+      setState("LISTENING");
+    }
   };
 
   // 🧠 MEMORY ENGINE
@@ -52,53 +84,21 @@ export default function Home() {
     }
   };
 
-  // 🧠 AI ENGINE
-  const askJarvisAI = async (input: string) => {
-    console.log("🚀 Requesting AI for:", input);
-    setState("THINKING");
-
-    try {
-      const memory = JSON.parse(localStorage.getItem("jarvis_memory") || "[]");
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, memory: memory.slice(-5) }), 
-      });
-      
-      const data = await res.json();
-      console.log("🧠 AI Response:", data);
-
-      if (data.reply) {
-        setStatus(data.reply);
-        speak(data.reply);
-      } else {
-        throw new Error("No reply");
-      }
-    } catch (err) {
-      console.error("❌ AI Fetch Error:", err);
-      setStatus("Connection lost, Sir.");
-      setState("LISTENING");
-    }
-  };
-
   // 🎯 INTENT HANDLER
   const handleInput = (text: string) => {
     const lower = text.toLowerCase();
-
     if (lower.includes("stop") || lower.includes("shut up") || lower.includes("be quiet")) {
       window.speechSynthesis.cancel();
       setState("LISTENING");
       setStatus("Standing by, Sir.");
       return;
     }
-
     if (lower.includes("remember") || lower.includes("my name is")) {
       saveMemory(text);
       setStatus("Information recorded.");
       speak("I've added that to my database, Sir.");
       return;
     }
-
     askJarvisAI(text);
   };
 
@@ -120,7 +120,6 @@ export default function Home() {
         const transcript = result[0].transcript.toLowerCase();
         const confidence = result[0].confidence;
 
-        // 🔊 INTERRUPT: If Jarvis is speaking and you say "Jarvis" or "Stop"
         if (stateRef.current === "SPEAKING" && result.isFinal && confidence > 0.6) {
           if (["jarvis", "stop", "wait", "listen"].some(w => transcript.includes(w))) {
             window.speechSynthesis.cancel();
@@ -130,7 +129,6 @@ export default function Home() {
           }
         }
 
-        // ✅ COMMAND: If Jarvis is idle/listening and you finish a sentence
         if (result.isFinal && confidence > 0.7 && stateRef.current === "LISTENING") {
           setStatus(`"${transcript}"`);
           handleInput(transcript);
@@ -139,7 +137,9 @@ export default function Home() {
     };
 
     recognition.onend = () => { 
-      if (isListeningRef.current) setTimeout(() => recognition.start(), 300); 
+      if (isListeningRef.current) setTimeout(() => {
+        try { recognition.start(); } catch(e) {}
+      }, 300); 
     };
 
     recognition.start();
@@ -160,7 +160,6 @@ export default function Home() {
   return (
     <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white font-mono">
       <div className={`w-64 h-64 rounded-full transition-all duration-1000 border-2 relative flex items-center justify-center ${getOrbStyle()}`}>
-        {/* Decorative inner rings */}
         <div className="absolute inset-4 rounded-full border border-white/5" />
         <div className={`w-24 h-24 rounded-full border border-cyan-400/20 transition-all ${state !== "IDLE" ? "scale-100 opacity-100" : "scale-0 opacity-0"}`} />
         {state === "THINKING" && <div className="absolute inset-0 rounded-full border-t-2 border-amber-400 animate-spin" />}
