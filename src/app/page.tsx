@@ -15,7 +15,6 @@ export default function Home() {
     stateRef.current = state;
   }, [state]);
 
-  // 🗣️ VOICE ENGINE (You were missing this!)
   const speak = (text: string) => {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
@@ -30,36 +29,25 @@ export default function Home() {
 
     speech.rate = 0.9;
     const voices = window.speechSynthesis.getVoices();
-    const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male"));
+    const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male")) || voices[0];
     if (jarvisVoice) speech.voice = jarvisVoice;
     
     window.speechSynthesis.speak(speech);
   };
 
-  // 🧠 AI ENGINE (Merged into one robust version)
   const askJarvisAI = async (input: string) => {
-    console.log("🚀 STARTING AI CALL for:", input);
     setState("THINKING");
 
     try {
-      const memory = JSON.parse(localStorage.getItem("jarvis_memory") || "[]");
-      
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, memory: memory.slice(-5) }), 
+        body: JSON.stringify({ message: input }), 
       });
-      
-      console.log("📡 SERVER STATUS:", res.status);
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("❌ SERVER ERROR TEXT:", errorText);
-        throw new Error(`Server status: ${res.status}`);
-      }
 
       const data = await res.json();
-      console.log("🧠 DATA RECEIVED:", data);
+
+      if (!res.ok) throw new Error(data.error || "Server error");
 
       if (data.reply) {
         setStatus(data.reply);
@@ -68,26 +56,30 @@ export default function Home() {
         throw new Error("Empty reply from server");
       }
     } catch (err: any) {
-      console.error("🕵️ DETAILED CATCH ERROR:", err);
-      setStatus(`Connection lost: ${err.message}`);
+      console.error("AI Error:", err);
+      setStatus(`Error: ${err.message}`);
       setState("LISTENING");
     }
   };
 
-  // 🧠 MEMORY ENGINE
   const saveMemory = (text: string) => {
-    const memory = JSON.parse(localStorage.getItem("jarvis_memory") || "[]");
-    const cleanedFact = text.replace(/remember|note that|my name is/gi, "").trim();
-    if (cleanedFact) {
-      memory.push(`[Fact]: ${cleanedFact}`);
-      localStorage.setItem("jarvis_memory", JSON.stringify(memory.slice(-10)));
+    try {
+      const stored = localStorage.getItem("jarvis_memory");
+      const memory = stored ? JSON.parse(stored) : [];
+      const cleanedFact = text.replace(/remember|note that|my name is/gi, "").trim();
+      
+      if (cleanedFact) {
+        memory.push(`[Fact]: ${cleanedFact}`);
+        localStorage.setItem("jarvis_memory", JSON.stringify(memory.slice(-10)));
+      }
+    } catch (e) {
+      localStorage.setItem("jarvis_memory", "[]");
     }
   };
 
-  // 🎯 INTENT HANDLER
   const handleInput = (text: string) => {
     const lower = text.toLowerCase();
-    if (lower.includes("stop") || lower.includes("shut up") || lower.includes("be quiet")) {
+    if (["stop", "shut up", "be quiet"].some(cmd => lower.includes(cmd))) {
       window.speechSynthesis.cancel();
       setState("LISTENING");
       setStatus("Standing by, Sir.");
@@ -102,7 +94,6 @@ export default function Home() {
     askJarvisAI(text);
   };
 
-  // 🎤 MICROPHONE SYSTEM
   const startListening = () => {
     if (typeof window === "undefined") return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -121,10 +112,9 @@ export default function Home() {
         const confidence = result[0].confidence;
 
         if (stateRef.current === "SPEAKING" && result.isFinal && confidence > 0.6) {
-          if (["jarvis", "stop", "wait", "listen"].some(w => transcript.includes(w))) {
+          if (["jarvis", "stop", "wait"].some(w => transcript.includes(w))) {
             window.speechSynthesis.cancel();
             setState("LISTENING");
-            setStatus("Listening, Sir...");
             return;
           }
         }
@@ -147,7 +137,6 @@ export default function Home() {
     setStatus("Neural link established.");
   };
 
-  // 🎨 UI STYLING
   const getOrbStyle = () => {
     switch (state) {
       case "LISTENING": return "border-green-500 shadow-[0_0_40px_rgba(34,197,94,0.4)] bg-green-500/5";
@@ -158,7 +147,7 @@ export default function Home() {
   };
 
   return (
-    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white font-mono">
+    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white font-mono p-4">
       <div className={`w-64 h-64 rounded-full transition-all duration-1000 border-2 relative flex items-center justify-center ${getOrbStyle()}`}>
         <div className="absolute inset-4 rounded-full border border-white/5" />
         <div className={`w-24 h-24 rounded-full border border-cyan-400/20 transition-all ${state !== "IDLE" ? "scale-100 opacity-100" : "scale-0 opacity-0"}`} />
