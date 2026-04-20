@@ -31,37 +31,21 @@ export default function Home() {
     }
   };
 
-  // 🧠 AI REQUEST HANDLER
-  const askJarvis = async (input: string) => {
-    // 🛑 STOP COMMAND CHECK (Must be inside the function)
-    if (input.toLowerCase() === "stop" || input.toLowerCase() === "be quiet" || input.toLowerCase() === "shut up") {
-      window.speechSynthesis.cancel();
-      setStatus("As you wish, Sir.");
-      setActive(false);
-      return; 
-    }
-
+  // 🧠 AI BRAIN (Groq)
+  const askJarvisAI = async (input: string, memory: string) => {
     setActive(true);
     setStatus("Thinking...");
-
-    const rawMemory = typeof window !== "undefined" ? localStorage.getItem("jarvis_memory") || "" : "";
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, memory: rawMemory }),
+        body: JSON.stringify({ message: input, memory: memory }),
       });
 
       const data = await res.json();
       setStatus(data.reply);
       speak(data.reply);
-
-      // Save memory locally
-      if (typeof window !== "undefined" && (input.toLowerCase().includes("remember") || input.toLowerCase().includes("my name is"))) {
-        const updatedMemory = rawMemory + ". " + input;
-        localStorage.setItem("jarvis_memory", updatedMemory);
-      }
     } catch (error) {
       setStatus("System error, Sir.");
     } finally {
@@ -69,31 +53,69 @@ export default function Home() {
     }
   };
 
-  // 🎤 MICROPHONE INPUT
-  const startListening = () => {
-    if (typeof window !== "undefined") {
-      window.speechSynthesis.cancel(); // Stop talking when I start listening
+  // 🎯 INTENT DETECTOR (Decision Layer)
+  const handleInput = async (text: string) => {
+    const lower = text.toLowerCase();
+    const rawMemory = typeof window !== "undefined" ? localStorage.getItem("jarvis_memory") || "" : "";
+
+    // 1. COMMAND: STOP
+    if (lower.includes("stop") || lower.includes("be quiet") || lower.includes("shut up")) {
+      window.speechSynthesis.cancel();
+      setStatus("As you wish, Sir.");
+      setActive(false);
+      return;
     }
+
+    // 2. COMMAND: MEMORY
+    if (lower.includes("remember") || lower.includes("note that") || lower.includes("my name is")) {
+      const updatedMemory = rawMemory + ". " + text;
+      localStorage.setItem("jarvis_memory", updatedMemory);
+      setStatus("Saved to memory, Sir.");
+      speak("I've made a note of that, Sir.");
+      setActive(false);
+      return;
+    }
+
+    // 3. DEFAULT: SEND TO AI
+    askJarvisAI(text, rawMemory);
+  };
+
+  // 🎤 MICROPHONE INPUT (Speaker-Optimized)
+  const startListening = () => {
+    if (typeof window === "undefined") return;
 
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognition) return alert("Use Chrome, Sir.");
 
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
-    setStatus("Listening...");
-    setActive(true);
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setStatus(`You: "${transcript}"`);
-      askJarvis(transcript);
+      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+      const isFinal = event.results[event.results.length - 1].isFinal;
+
+      // 🔊 SPEAKER INTERRUPT LOGIC
+      if (window.speechSynthesis.speaking) {
+        const stopTerms = ["stop", "jarvis", "wait", "shut up", "listen"];
+        const containsStopTerm = stopTerms.some(term => transcript.includes(term));
+
+        if (containsStopTerm || transcript.length > 20) { 
+          window.speechSynthesis.cancel();
+          console.log("Interrupting for you, Sir.");
+        } else {
+          return; // Ignore the echo of Jarvis's own voice
+        }
+      }
+
+      if (isFinal) {
+        setStatus(`You: "${transcript}"`);
+        handleInput(transcript); 
+      }
     };
 
-    recognition.onerror = () => {
-      setStatus("I didn't catch that, Sir.");
-      setActive(false);
-    };
-
+    recognition.onend = () => { if (active) recognition.start(); };
     recognition.start();
   };
 
@@ -107,7 +129,7 @@ export default function Home() {
       </div>
 
       <div className="min-h-[4rem] flex items-center justify-center">
-        <p className="text-2xl font-mono text-cyan-400 mb-10 text-center max-w-2xl">
+        <p className="text-2xl font-mono text-cyan-400 mb-10 text-center max-w-2xl tracking-tight">
           {status}
         </p>
       </div>
