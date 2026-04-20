@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 
-export async function POST(req) { // Removed Type for pure JS if necessary
+export async function POST(req) {
   try {
     const { message, memory } = await req.json();
 
-    // ✅ FIX: Turn the Array into a clean, numbered list or string
+    // Cleanly format memory array into a string for the AI
     const formattedMemory = Array.isArray(memory) 
       ? memory.join(". ") 
-      : (memory || "Nothing yet");
+      : (memory || "No previous context.");
 
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -23,8 +23,8 @@ export async function POST(req) { // Removed Type for pure JS if necessary
             {
               role: "system",
               content: `You are Jarvis, a witty British AI. 
-              Here is what you know about the user: ${formattedMemory}. 
-              Keep your responses brief and sophisticated.`,
+              User Context: ${formattedMemory}. 
+              Be sophisticated, brief, and refer to the user as 'Sir'.`,
             },
             { role: "user", content: message },
           ],
@@ -34,17 +34,16 @@ export async function POST(req) { // Removed Type for pure JS if necessary
 
     const data = await response.json();
     
-    // Safety check for Groq's response structure
+    // Handle Groq API errors
     if (!data.choices || data.choices.length === 0) {
-        console.error("Groq API Error:", data);
-        return NextResponse.json({ reply: "I'm having trouble connecting to my brain, Sir." });
+      return NextResponse.json({ reply: "My neural processors are lagging, Sir." }, { status: 500 });
     }
 
     const reply = data.choices[0].message.content;
     return NextResponse.json({ reply });
 
   } catch (error) {
-    console.error("Route Error:", error);
-    return NextResponse.json({ reply: "Server error, Sir." });
+    console.error("API ROUTE ERROR:", error);
+    return NextResponse.json({ reply: "System error in the backend, Sir." }, { status: 500 });
   }
 }
