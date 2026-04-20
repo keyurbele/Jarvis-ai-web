@@ -2,13 +2,18 @@ import { NextResponse } from "next/server";
 
 export async function POST(req) {
   try {
-    const { message, memory } = await req.json();
+    const body = await req.json();
+    const { message, memory } = body;
 
-    // Cleanly format memory array into a string for the AI
-    const formattedMemory = Array.isArray(memory) 
-      ? memory.join(". ") 
-      : (memory || "No previous context.");
+    // 1. Check if the API key exists
+    if (!process.env.GROQ_API_KEY) {
+      return NextResponse.json({ reply: "Sir, the API key is missing from the server environment." }, { status: 500 });
+    }
 
+    // 2. Format memory safely
+    const formattedMemory = Array.isArray(memory) ? memory.join(". ") : "No context.";
+
+    // 3. Call Groq
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -22,9 +27,7 @@ export async function POST(req) {
           messages: [
             {
               role: "system",
-              content: `You are Jarvis, a witty British AI. 
-              User Context: ${formattedMemory}. 
-              Be sophisticated, brief, and refer to the user as 'Sir'.`,
+              content: `You are Jarvis, a witty British AI. Context: ${formattedMemory}. Keep it brief, Sir.`,
             },
             { role: "user", content: message },
           ],
@@ -33,17 +36,21 @@ export async function POST(req) {
     );
 
     const data = await response.json();
-    
-    // Handle Groq API errors
-    if (!data.choices || data.choices.length === 0) {
-      return NextResponse.json({ reply: "My neural processors are lagging, Sir." }, { status: 500 });
+
+    // 4. Handle Groq Errors (like invalid keys)
+    if (data.error) {
+      console.error("Groq Error:", data.error);
+      return NextResponse.json({ reply: `Groq Error: ${data.error.message}` }, { status: 500 });
     }
 
-    const reply = data.choices[0].message.content;
+    const reply = data.choices?.[0]?.message?.content || "I'm drawing a blank, Sir.";
+    
+    // 5. ALWAYS return JSON
     return NextResponse.json({ reply });
 
   } catch (error) {
-    console.error("API ROUTE ERROR:", error);
-    return NextResponse.json({ reply: "System error in the backend, Sir." }, { status: 500 });
+    console.error("FETCH ERROR:", error);
+    // This ensures even if it crashes, it returns JSON so the frontend doesn't show that "Unexpected Token" error
+    return NextResponse.json({ reply: "Neural link timeout. Please try again, Sir." }, { status: 500 });
   }
 }
