@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const [active, setActive] = useState(false);
@@ -13,35 +13,25 @@ export default function Home() {
     
     const speech = new SpeechSynthesisUtterance(text);
     
-    // 🔒 THE LOCK: Stop Jarvis from hearing himself
     speech.onstart = () => setJarvisIsSpeaking(true);
     speech.onend = () => {
-      // Small delay after speaking to let room echoes die down
       setTimeout(() => setJarvisIsSpeaking(false), 600);
     };
 
     speech.rate = 0.88;
     speech.pitch = 0.9;
 
-    const setVoice = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const jarvisVoice = voices.find((v) =>
-        v.name.includes("Google UK English Male") ||
-        v.name.includes("Microsoft James") ||
-        v.name.includes("Arthur")
-      );
-      if (jarvisVoice) speech.voice = jarvisVoice;
-      window.speechSynthesis.speak(speech);
-    };
-
-    if (window.speechSynthesis.getVoices().length !== 0) {
-      setVoice();
-    } else {
-      window.speechSynthesis.onvoiceschanged = setVoice;
-    }
+    const voices = window.speechSynthesis.getVoices();
+    const jarvisVoice = voices.find((v) =>
+      v.name.includes("Google UK English Male") ||
+      v.name.includes("Microsoft James") ||
+      v.name.includes("Arthur")
+    );
+    if (jarvisVoice) speech.voice = jarvisVoice;
+    window.speechSynthesis.speak(speech);
   };
 
-  // 🧠 AI BRAIN (Groq)
+  // 🧠 AI BRAIN
   const askJarvisAI = async (input: string, memory: string) => {
     setActive(true);
     setStatus("Thinking...");
@@ -63,21 +53,18 @@ export default function Home() {
     }
   };
 
-  // 🎯 INTENT DETECTOR (Decision Layer)
+  // 🎯 INTENT DETECTOR
   const handleInput = async (text: string) => {
     const lower = text.toLowerCase();
     const rawMemory = typeof window !== "undefined" ? localStorage.getItem("jarvis_memory") || "" : "";
 
-    // 1. COMMAND: STOP
     if (lower.includes("stop") || lower.includes("be quiet") || lower.includes("shut up")) {
       window.speechSynthesis.cancel();
       setJarvisIsSpeaking(false);
       setStatus("As you wish, Sir.");
-      setActive(false);
       return;
     }
 
-    // 2. COMMAND: MEMORY
     if (lower.includes("remember") || lower.includes("note that") || lower.includes("my name is")) {
       const updatedMemory = rawMemory + ". " + text;
       localStorage.setItem("jarvis_memory", updatedMemory);
@@ -86,11 +73,10 @@ export default function Home() {
       return;
     }
 
-    // 3. DEFAULT: SEND TO AI
     askJarvisAI(text, rawMemory);
   };
 
-  // 🎤 MICROPHONE INPUT (Speaker & Loop Optimized)
+  // 🎤 MICROPHONE INPUT
   const startListening = () => {
     if (typeof window === "undefined") return;
 
@@ -100,34 +86,38 @@ export default function Home() {
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.interimResults = true; // ⚡ CRITICAL FOR INTERRUPTS
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
-      const isFinal = event.results[event.results.length - 1].isFinal;
-
-      // 🛡️ THE MASTER FILTER
-      if (jarvisIsSpeaking) {
-        // If we hear "Stop" or "Jarvis" even while he talks, interrupt him!
-        if (transcript.includes("stop") || transcript.includes("jarvis") || transcript.includes("shut up")) {
-          window.speechSynthesis.cancel();
-          setJarvisIsSpeaking(false);
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcriptChunk = event.results[i][0].transcript.toLowerCase();
+        
+        // 🔊 INTERRUPT CHECK (Checks even while you are mid-sentence)
+        if (window.speechSynthesis.speaking || jarvisIsSpeaking) {
+          const interruptWords = ["jarvis", "stop", "shut up", "wait", "listen"];
+          if (interruptWords.some(word => transcriptChunk.includes(word))) {
+            window.speechSynthesis.cancel();
+            setJarvisIsSpeaking(false);
+            setStatus("Listening, Sir...");
+            return; 
+          }
         }
-        return; // Ignore everything else while he speaks
-      }
 
-      if (isFinal) {
-        setStatus(`You: "${transcript}"`);
-        handleInput(transcript); 
+        if (event.results[i].isFinal) {
+          setStatus(`You: "${transcriptChunk}"`);
+          handleInput(transcriptChunk);
+        }
       }
     };
 
-    recognition.onend = () => { 
-      // Keep ears open unless we explicitly turned off the system
-      if (active || status.includes("Ready")) recognition.start(); 
+    recognition.onend = () => {
+      // Auto-restart listening
+      recognition.start();
     };
 
     recognition.start();
+    setStatus("System Online, Sir.");
   };
 
   return (
