@@ -12,7 +12,7 @@ export default function Home() {
   const isListeningRef = useRef(true);
 
   // 🗣️ VOICE ENGINE
-  const speak = (text: string) => {
+const speak = (text) => {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
     
@@ -20,17 +20,20 @@ export default function Home() {
     
     speech.onstart = () => setState("SPEAKING");
     speech.onend = () => {
-      // Return to listening mode after a brief echo delay
       setTimeout(() => setState("LISTENING"), 500);
     };
 
-    speech.rate = 0.88;
-    speech.pitch = 0.9;
+    speech.rate = 0.9;
+    speech.pitch = 1.0;
 
-    const voices = window.speechSynthesis.getVoices();
+    // ✅ VOICES FIX: Try to get voices, but speak anyway if they haven't loaded yet
+    let voices = window.speechSynthesis.getVoices();
     const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male") || v.name.includes("Microsoft James"));
-    if (jarvisVoice) speech.voice = jarvisVoice;
     
+    if (jarvisVoice) {
+      speech.voice = jarvisVoice;
+    }
+
     window.speechSynthesis.speak(speech);
   };
 
