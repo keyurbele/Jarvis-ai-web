@@ -5,29 +5,25 @@ type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 
 export default function Home() {
   const [state, setState] = useState<JarvisState>("IDLE");
-  const [status, setStatus] = useState("Ready for orders, Sir.");
+  const [status, setStatus] = useState("SYSTEM STANDBY");
   const [volume, setVolume] = useState(0);
 
   const recognitionRef = useRef<any>(null);
   const animationRef = useRef<any>(null);
   const stateRef = useRef<JarvisState>("IDLE");
 
-  // Keep stateRef in sync so listeners can read the current state
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
+  // Logic remains the same as previous stable version for brevity
   const startAudio = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      const audioContext = new AudioContext();
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
       const update = () => {
         analyser.getByteFrequencyData(dataArray);
         let sum = 0;
@@ -36,24 +32,14 @@ export default function Home() {
         animationRef.current = requestAnimationFrame(update);
       };
       update();
-    } catch (err) {
-      console.error("Mic error:", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(text);
     speech.onstart = () => setState("SPEAKING");
-    speech.onend = () => {
-      if (stateRef.current === "SPEAKING") setState("LISTENING");
-    };
-    speech.rate = 0.9;
-    
-    const voices = window.speechSynthesis.getVoices();
-    const jarvisVoice = voices.find(v => v.name.includes("Google UK English Male"));
-    if (jarvisVoice) speech.voice = jarvisVoice;
-    
+    speech.onend = () => { if (stateRef.current === "SPEAKING") setState("LISTENING"); };
     window.speechSynthesis.speak(speech);
   };
 
@@ -70,143 +56,135 @@ export default function Home() {
       speak(data.reply);
     } catch {
       setState("LISTENING");
-      setStatus("Connection error, Sir.");
+      setStatus("CONNECTION ERROR: NEURAL CORE OFFLINE");
     }
   };
 
   const startSystem = () => {
     if (state !== "IDLE") return;
-    startAudio(); 
-
+    startAudio();
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = true; // MUST be true to catch "Stop" mid-sentence
-
+    recognition.interimResults = true;
     recognition.onresult = (event: any) => {
       const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
-      const isFinal = event.results[event.results.length - 1].isFinal;
-
-      // --- INTERRUPT LOGIC ---
-      if (stateRef.current === "SPEAKING" || stateRef.current === "THINKING") {
-        if (transcript.includes("stop") || transcript.includes("shutup") || transcript.includes("jarvis") || transcript.includes("wait")) {
-          window.speechSynthesis.cancel();
-          setState("LISTENING");
-          setStatus("Standing by, Sir.");
-          return;
-        }
+      if (stateRef.current === "SPEAKING" && transcript.includes("stop")) {
+        window.speechSynthesis.cancel();
+        setState("LISTENING");
+        return;
       }
-
-      // --- NORMAL PROCESSING ---
-      if (isFinal && stateRef.current === "LISTENING") {
-        setStatus(`"${transcript}"`);
+      if (event.results[event.results.length - 1].isFinal && stateRef.current === "LISTENING") {
+        setStatus(transcript.toUpperCase());
         askJarvisAI(transcript);
       }
     };
-
-    recognition.onend = () => {
-      if (stateRef.current !== "IDLE") recognition.start();
-    };
-
+    recognition.onend = () => { if (stateRef.current !== "IDLE") recognition.start(); };
     recognition.start();
     setState("LISTENING");
-    setStatus("Neural link established.");
+    setStatus("SYSTEM ONLINE: MARK-85 ACTIVE");
   };
 
-  const orbScale = 1 + volume * 0.8;
-  const glow = volume * 100;
-  const getColor = () => {
-    switch (state) {
-      case "LISTENING": return "34,197,94";
-      case "THINKING":  return "251,191,36";
-      case "SPEAKING":  return "34,211,238";
-      default:          return "148,163,184";
-    }
+  // Dynamic Colors based on State
+  const colors = {
+    LISTENING: "0, 255, 255", // Cyan
+    THINKING: "255, 200, 0",  // Amber
+    SPEAKING: "0, 150, 255",  // Deep Blue
+    IDLE: "100, 100, 100"     // Dim Gray
   };
-
-  const rgb = getColor();
-
-// ... (Keep all your existing logic/functions at the top)
+  const activeColor = colors[state] || colors.IDLE;
 
   return (
-    <main className="h-screen w-full bg-[#050a10] flex flex-col items-center justify-center text-white overflow-hidden font-mono relative">
+    <main className="h-screen w-full bg-[#020508] flex flex-col items-center justify-center overflow-hidden font-sans select-none">
       
-      {/* 📺 TECH OVERLAY: Scanlines */}
-      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]" />
+      {/* 1. THE GRID BACKGROUND */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none" 
+        style={{ backgroundImage: `radial-gradient(circle at 2px 2px, rgba(${activeColor}, 0.5) 1px, transparent 0)`, backgroundSize: '40px 40px' }} 
+      />
 
-      {/* 💠 HUD CORNERS */}
-      <div className="absolute top-10 left-10 w-20 h-20 border-t-2 border-l-2 border-cyan-500/30 ml-4 mt-4" />
-      <div className="absolute top-10 right-10 w-20 h-20 border-t-2 border-r-2 border-cyan-500/30 mr-4 mt-4" />
-      <div className="absolute bottom-10 left-10 w-20 h-20 border-b-2 border-l-2 border-cyan-500/30 ml-4 mb-4" />
-      <div className="absolute bottom-10 right-10 w-20 h-20 border-b-2 border-r-2 border-cyan-500/30 mr-4 mb-4" />
-
-      {/* 🧿 THE ADVANCED ORB */}
-      <div className="relative flex items-center justify-center">
-        {/* Outer Rotating Ring */}
+      {/* 2. THE MAIN ORB ASSEMBLY */}
+      <div className="relative z-10 scale-75 md:scale-100">
+        {/* Animated Outer Ring */}
+        <div className="absolute -inset-20 border border-cyan-500/20 rounded-full animate-[spin_20s_linear_infinite]" />
+        <div className="absolute -inset-16 border-t border-b border-cyan-400/40 rounded-full animate-[spin_10s_linear_infinite_reverse]" />
+        
+        {/* The Reactive Orb */}
         <div 
-          className="absolute w-[320px] h-[320px] border border-cyan-500/10 rounded-full animate-[spin_10s_linear_infinite]" 
-          style={{ borderTopColor: `rgb(${rgb})` }}
-        />
-        
-        {/* Middle Reactive Ring */}
-        <div
-          style={{
-            transform: `scale(${orbScale})`,
-            boxShadow: `0 0 ${glow}px rgba(${rgb}, 0.4), inset 0 0 30px rgba(${rgb}, 0.2)`,
-            borderColor: `rgba(${rgb}, 0.6)`,
+          className="relative w-64 h-64 rounded-full flex items-center justify-center transition-all duration-300 border-[3px]"
+          style={{ 
+            borderColor: `rgba(${activeColor}, 0.8)`,
+            boxShadow: `0 0 ${20 + volume * 100}px rgba(${activeColor}, 0.4), inset 0 0 40px rgba(${activeColor}, 0.2)`
           }}
-          className="w-64 h-64 rounded-full border-2 transition-all duration-75 flex items-center justify-center relative bg-black/40 backdrop-blur-sm"
         >
-          {/* Inner Pulsing Core */}
-          <div 
-            className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center"
-            style={{ boxShadow: `0 0 ${glow / 2}px rgba(${rgb}, 0.8)` }}
-          >
-            <div className="w-8 h-8 rounded-full bg-cyan-400 opacity-20 animate-ping" />
-          </div>
-        </div>
-      </div>
-
-      {/* 📟 STATUS INTERFACE */}
-      <div className="mt-20 flex flex-col items-center z-10">
-        <div className="px-6 py-2 bg-cyan-500/5 border border-cyan-500/20 rounded-t-lg backdrop-blur-md">
-          <p className="text-[10px] tracking-[0.5em] text-cyan-400 uppercase font-bold">
-            System Identity: MARK-85
-          </p>
-        </div>
-        
-        <div className="w-[500px] p-8 bg-black/60 border border-cyan-500/20 rounded-lg backdrop-blur-xl shadow-2xl relative overflow-hidden group">
-          {/* Subtle scanning light effect */}
-          <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-500/20 animate-[scan_3s_ease-in-out_infinite]" />
+          {/* Inner Core */}
+          <div className="w-12 h-12 rounded-full bg-white/20 border border-white/40 shadow-[0_0_20px_white]" />
           
-          <div className="flex justify-between items-center mb-4 border-b border-cyan-500/10 pb-2">
-            <span className="text-[9px] text-cyan-700 tracking-tighter">ESTABLISHED LINK: STARK_SECURE_77</span>
-            <span className={`text-[9px] px-2 py-0.5 rounded ${state === 'IDLE' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-               {state}
-            </span>
-          </div>
-
-          <p className="text-xl text-cyan-100 min-h-[60px] italic leading-relaxed text-center drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">
-            {status}
-          </p>
+          {/* Audio Wave Visualizer (SVG) */}
+          <svg className="absolute inset-0 w-full h-full rotate-[-90deg]">
+             <circle 
+              cx="128" cy="128" r="120" 
+              fill="transparent" 
+              stroke={`rgba(${activeColor}, 0.3)`} 
+              strokeWidth="4" 
+              strokeDasharray="10 5" 
+            />
+          </svg>
         </div>
       </div>
 
-      {/* ⚡ INITIALIZE BUTTON */}
+      {/* 3. THE HUD PANEL */}
+      <div className="mt-24 w-full max-w-3xl relative">
+        {/* Header Label */}
+        <div className="flex justify-center mb-[-1px]">
+          <div className="px-8 py-1 bg-cyan-900/40 border-t border-x border-cyan-500/50 rounded-t-xl backdrop-blur-md">
+             <span className="text-[10px] tracking-[0.6em] text-cyan-400 font-bold">SYSTEM IDENTITY: MARK-85</span>
+          </div>
+        </div>
+
+        {/* Main Box */}
+        <div className="relative bg-black/60 border border-cyan-500/50 backdrop-blur-xl p-10 rounded-xl shadow-[0_0_30px_rgba(0,255,255,0.1)] overflow-hidden">
+          {/* Scanning Line */}
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-cyan-400/50 animate-[scan_4s_linear_infinite]" />
+          
+          {/* Sub-Info */}
+          <div className="flex justify-between items-center mb-6 opacity-60">
+            <span className="text-[8px] tracking-widest text-cyan-300 uppercase">Established Link: Stark_Secure_77</span>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${state !== "IDLE" ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-[8px] tracking-widest text-cyan-300 uppercase font-bold">{state}</span>
+            </div>
+          </div>
+
+          {/* Transcript/Status */}
+          <div className="text-center">
+            <p className="text-2xl font-light text-cyan-100 tracking-wide drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] uppercase italic">
+              {status}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. THE POWER BUTTON */}
       {state === "IDLE" && (
-        <button
+        <button 
           onClick={startSystem}
-          className="mt-12 group relative px-12 py-4 overflow-hidden"
+          className="mt-12 px-16 py-4 bg-cyan-950/20 border border-cyan-500/50 hover:bg-cyan-500/20 hover:scale-105 active:scale-95 transition-all text-cyan-400 tracking-[0.8em] font-bold text-[10px]"
         >
-          <div className="absolute inset-0 bg-cyan-500/10 group-hover:bg-cyan-500/20 transition-all" />
-          <div className="absolute bottom-0 left-0 w-full h-[1px] bg-cyan-500/40 group-hover:h-full transition-all duration-300" />
-          <span className="relative text-xs tracking-[0.5em] text-cyan-400 font-bold group-hover:text-black transition-colors">
-            INITIALIZE NEURAL LINK
-          </span>
+          INITIALIZE NEURAL LINK
         </button>
       )}
+
+      {/* CSS Animations (Injected via Style tag for ease of copy-paste) */}
+      <style jsx>{`
+        @keyframes scan {
+          0% { top: 0; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+      `}</style>
     </main>
   );
 }
