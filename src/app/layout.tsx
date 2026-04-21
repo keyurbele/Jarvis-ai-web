@@ -2,13 +2,18 @@ import { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Jarvis AI | Next-Gen Voice Assistant",
+  title: "Jarvis AI | Neural Voice Assistant by Keyur",
   description: "A high-performance, voice-reactive AI assistant with long-term memory and local system control.",
-  keywords: ["Jarvis AI", "Voice Assistant", "AI Memory", "Next.js AI", "Open Source Jarvis"],
+  keywords: ["Jarvis AI", "Voice Assistant", "AI Memory", "Next.js AI", "Keyur Jarvis"],
   authors: [{ name: "Keyur" }],
+  metadataBase: new URL('https://jarvis-ai-web-two.vercel.app'),
   verification: {
-    // I cleaned this up for you: Next.js only needs the code inside the quotes
     google: "Gr3vdruMiT3JD3tOHAHQv6ZZU1zLMm3rElfjIeUKSZY", 
+  },
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/icon.png',
+    apple: '/apple-touch-icon.png',
   },
   openGraph: {
     title: "Jarvis AI - Personalized Neural Assistant",
@@ -17,9 +22,9 @@ export const metadata: Metadata = {
     siteName: "Jarvis AI",
     images: [
       {
-        url: "/og-image.png", 
-        width: 1200,
-        height: 630,
+        url: '/icon.png', // Using icon.png since it's already in your public folder
+        width: 512,
+        height: 512,
       },
     ],
     locale: "en_US",
@@ -29,7 +34,11 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Jarvis AI",
     description: "The closest thing to a real-life Jarvis assistant.",
-    images: ["/og-image.png"],
+    images: ["/icon.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
