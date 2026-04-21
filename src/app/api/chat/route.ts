@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 export async function POST(req: Request) {
   try {
     const { message, memory } = await req.json();
@@ -13,14 +15,16 @@ export async function POST(req: Request) {
         messages: [
           { 
             role: "system", 
-            content: `You are a sophisticated AI assistant named Jarvis. 
-            USER PROFILE DATA:
-            ${memory}
-            
-            Always refer to the user as "Sir". Be witty, professional, and use the profile data to be personal.` 
+            content: `You are a professional AI assistant. User Profile Data:\n${memory}\nAlways refer to the user as "Sir". Be brief and witty.` 
           },
           { role: "user", content: message }
         ],
       }),
     });
-    // ... handle response
+
+    const data = await response.json();
+    return NextResponse.json({ reply: data.choices[0].message.content });
+  } catch (error) {
+    return NextResponse.json({ reply: "Connection to neural core lost, Sir." }, { status: 500 });
+  }
+}
