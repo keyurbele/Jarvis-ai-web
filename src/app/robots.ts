@@ -5,8 +5,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: '/api/', // Don't let them crawl your internal API routes
+      disallow: '/api/', 
     },
-    sitemap: 'https://your-project-name.vercel.app/sitemap.xml',
+    sitemap: 'https://jarvis-ai-web-two.vercel.app/sitemap.xml',
   };
 }
