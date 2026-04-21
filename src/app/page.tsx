@@ -128,30 +128,83 @@ export default function Home() {
 
   const rgb = getColor();
 
+// ... (Keep all your existing logic/functions at the top)
+
   return (
-    <main className="h-screen w-full bg-black flex flex-col items-center justify-center text-white overflow-hidden font-mono">
-      <div
-        style={{
-          transform: `scale(${orbScale})`,
-          boxShadow: `0 0 ${glow}px rgba(${rgb},0.6)`,
-          borderColor: `rgba(${rgb},0.8)`,
-        }}
-        className="w-56 h-56 rounded-full border-2 transition-all duration-75 flex items-center justify-center"
-      >
-        <div className="w-24 h-24 rounded-full bg-white/10 animate-pulse" />
+    <main className="h-screen w-full bg-[#050a10] flex flex-col items-center justify-center text-white overflow-hidden font-mono relative">
+      
+      {/* 📺 TECH OVERLAY: Scanlines */}
+      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]" />
+
+      {/* 💠 HUD CORNERS */}
+      <div className="absolute top-10 left-10 w-20 h-20 border-t-2 border-l-2 border-cyan-500/30 ml-4 mt-4" />
+      <div className="absolute top-10 right-10 w-20 h-20 border-t-2 border-r-2 border-cyan-500/30 mr-4 mt-4" />
+      <div className="absolute bottom-10 left-10 w-20 h-20 border-b-2 border-l-2 border-cyan-500/30 ml-4 mb-4" />
+      <div className="absolute bottom-10 right-10 w-20 h-20 border-b-2 border-r-2 border-cyan-500/30 mr-4 mb-4" />
+
+      {/* 🧿 THE ADVANCED ORB */}
+      <div className="relative flex items-center justify-center">
+        {/* Outer Rotating Ring */}
+        <div 
+          className="absolute w-[320px] h-[320px] border border-cyan-500/10 rounded-full animate-[spin_10s_linear_infinite]" 
+          style={{ borderTopColor: `rgb(${rgb})` }}
+        />
+        
+        {/* Middle Reactive Ring */}
+        <div
+          style={{
+            transform: `scale(${orbScale})`,
+            boxShadow: `0 0 ${glow}px rgba(${rgb}, 0.4), inset 0 0 30px rgba(${rgb}, 0.2)`,
+            borderColor: `rgba(${rgb}, 0.6)`,
+          }}
+          className="w-64 h-64 rounded-full border-2 transition-all duration-75 flex items-center justify-center relative bg-black/40 backdrop-blur-sm"
+        >
+          {/* Inner Pulsing Core */}
+          <div 
+            className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center"
+            style={{ boxShadow: `0 0 ${glow / 2}px rgba(${rgb}, 0.8)` }}
+          >
+            <div className="w-8 h-8 rounded-full bg-cyan-400 opacity-20 animate-ping" />
+          </div>
+        </div>
       </div>
 
-      <div className="mt-16 text-center h-24 px-6">
-        <p className="text-[10px] tracking-[0.4em] text-gray-500 mb-2 uppercase">Core State: {state}</p>
-        <p className="text-cyan-400 text-lg max-w-xl italic">{status}</p>
+      {/* 📟 STATUS INTERFACE */}
+      <div className="mt-20 flex flex-col items-center z-10">
+        <div className="px-6 py-2 bg-cyan-500/5 border border-cyan-500/20 rounded-t-lg backdrop-blur-md">
+          <p className="text-[10px] tracking-[0.5em] text-cyan-400 uppercase font-bold">
+            System Identity: MARK-85
+          </p>
+        </div>
+        
+        <div className="w-[500px] p-8 bg-black/60 border border-cyan-500/20 rounded-lg backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+          {/* Subtle scanning light effect */}
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-500/20 animate-[scan_3s_ease-in-out_infinite]" />
+          
+          <div className="flex justify-between items-center mb-4 border-b border-cyan-500/10 pb-2">
+            <span className="text-[9px] text-cyan-700 tracking-tighter">ESTABLISHED LINK: STARK_SECURE_77</span>
+            <span className={`text-[9px] px-2 py-0.5 rounded ${state === 'IDLE' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+               {state}
+            </span>
+          </div>
+
+          <p className="text-xl text-cyan-100 min-h-[60px] italic leading-relaxed text-center drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">
+            {status}
+          </p>
+        </div>
       </div>
 
+      {/* ⚡ INITIALIZE BUTTON */}
       {state === "IDLE" && (
         <button
           onClick={startSystem}
-          className="mt-10 px-10 py-4 border border-cyan-500 text-cyan-400 hover:bg-cyan-500/10 transition-all text-xs tracking-[0.3em]"
+          className="mt-12 group relative px-12 py-4 overflow-hidden"
         >
-          INITIALIZE CORE
+          <div className="absolute inset-0 bg-cyan-500/10 group-hover:bg-cyan-500/20 transition-all" />
+          <div className="absolute bottom-0 left-0 w-full h-[1px] bg-cyan-500/40 group-hover:h-full transition-all duration-300" />
+          <span className="relative text-xs tracking-[0.5em] text-cyan-400 font-bold group-hover:text-black transition-colors">
+            INITIALIZE NEURAL LINK
+          </span>
         </button>
       )}
     </main>
