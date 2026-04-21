@@ -1,11 +1,6 @@
-import { NextResponse } from "next/server";
-
 export async function POST(req: Request) {
   try {
-    const { message, memory } = await req.json(); // Now receiving structured memory
-
-    // Format memory into a "User Profile" for the AI
-    const userProfile = memory.map((m: any) => `- ${m.type.toUpperCase()} (${m.key}): ${m.value}`).join("\n");
+    const { message, memory } = await req.json();
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -18,20 +13,14 @@ export async function POST(req: Request) {
         messages: [
           { 
             role: "system", 
-            content: `You are a sophisticated AI assistant. 
-            USER PROFILE:
-            ${userProfile || "No data yet."}
+            content: `You are a sophisticated AI assistant named Jarvis. 
+            USER PROFILE DATA:
+            ${memory}
             
-            Use this profile to personalize your responses. Be brief and professional.` 
+            Always refer to the user as "Sir". Be witty, professional, and use the profile data to be personal.` 
           },
           { role: "user", content: message }
         ],
       }),
     });
-
-    const data = await response.json();
-    return NextResponse.json({ reply: data.choices[0].message.content });
-  } catch (error) {
-    return NextResponse.json({ error: "Neural core offline." }, { status: 500 });
-  }
-}
+    // ... handle response
