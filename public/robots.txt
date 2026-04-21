@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://jarvis-ai-web-two.vercel.app/sitemap.xml
