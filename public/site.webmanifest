@@ -1,1 +1,14 @@
-
+{
+  "name": "Jarvis AI",
+  "short_name": "Jarvis",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "display": "standalone"
+}
