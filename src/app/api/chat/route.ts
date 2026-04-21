@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { message } = await req.json();
+    const { message, memory } = await req.json(); // Now receiving structured memory
 
-    if (!process.env.GROQ_API_KEY) {
-      return NextResponse.json({ error: "API Key missing in environment." }, { status: 500 });
-    }
+    // Format memory into a "User Profile" for the AI
+    const userProfile = memory.map((m: any) => `- ${m.type.toUpperCase()} (${m.key}): ${m.value}`).join("\n");
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -17,21 +16,22 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: "You are Jarvis. Be brief, sophisticated, and helpful." },
+          { 
+            role: "system", 
+            content: `You are a sophisticated AI assistant. 
+            USER PROFILE:
+            ${userProfile || "No data yet."}
+            
+            Use this profile to personalize your responses. Be brief and professional.` 
+          },
           { role: "user", content: message }
         ],
       }),
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      return NextResponse.json({ error: data.error?.message || "Groq API Error" }, { status: response.status });
-    }
-
     return NextResponse.json({ reply: data.choices[0].message.content });
   } catch (error) {
-    console.error("Fetch Error:", error);
-    return NextResponse.json({ error: "Failed to reach neural core." }, { status: 500 });
+    return NextResponse.json({ error: "Neural core offline." }, { status: 500 });
   }
 }
