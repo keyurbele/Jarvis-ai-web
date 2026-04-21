@@ -5,7 +5,7 @@ type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 
 export default function Home() {
   const [state, setState] = useState<JarvisState>("IDLE");
-  const [status, setStatus] = useState("SYSTEM STANDBY");
+  const [status, setStatus] = useState("SYSTEM READY");
   const [volume, setVolume] = useState(0);
 
   const recognitionRef = useRef<any>(null);
@@ -14,7 +14,6 @@ export default function Home() {
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  // Logic remains the same as previous stable version for brevity
   const startAudio = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -38,6 +37,19 @@ export default function Home() {
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(text);
+    
+    // --- VOICE CUSTOMIZATION ---
+    const voices = window.speechSynthesis.getVoices();
+    // To see all options, check your browser console!
+    console.log("Available Voices:", voices.map(v => v.name));
+
+    // CHANGE THIS NAME to your preferred voice from the console list
+    const preferredVoice = voices.find(v => v.name.includes("Google UK English Male")) || voices[0];
+    
+    if (preferredVoice) speech.voice = preferredVoice;
+    speech.rate = 1.0; 
+    speech.pitch = 1.0;
+
     speech.onstart = () => setState("SPEAKING");
     speech.onend = () => { if (stateRef.current === "SPEAKING") setState("LISTENING"); };
     window.speechSynthesis.speak(speech);
@@ -56,7 +68,7 @@ export default function Home() {
       speak(data.reply);
     } catch {
       setState("LISTENING");
-      setStatus("CONNECTION ERROR: NEURAL CORE OFFLINE");
+      setStatus("ERROR: CORE OFFLINE");
     }
   };
 
@@ -69,11 +81,14 @@ export default function Home() {
     recognition.lang = "en-US";
     recognition.continuous = true;
     recognition.interimResults = true;
+
     recognition.onresult = (event: any) => {
       const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
-      if (stateRef.current === "SPEAKING" && transcript.includes("stop")) {
+      if ((stateRef.current === "SPEAKING" || stateRef.current === "THINKING") && 
+          (transcript.includes("stop") || transcript.includes("wait"))) {
         window.speechSynthesis.cancel();
         setState("LISTENING");
+        setStatus("INTERRUPT RECEIVED");
         return;
       }
       if (event.results[event.results.length - 1].isFinal && stateRef.current === "LISTENING") {
@@ -84,107 +99,79 @@ export default function Home() {
     recognition.onend = () => { if (stateRef.current !== "IDLE") recognition.start(); };
     recognition.start();
     setState("LISTENING");
-    setStatus("SYSTEM ONLINE: MARK-85 ACTIVE");
+    setStatus("CORE ONLINE");
   };
 
-  // Dynamic Colors based on State
   const colors = {
-    LISTENING: "0, 255, 255", // Cyan
-    THINKING: "255, 200, 0",  // Amber
-    SPEAKING: "0, 150, 255",  // Deep Blue
-    IDLE: "100, 100, 100"     // Dim Gray
+    LISTENING: "34, 211, 238", // Cyan
+    THINKING: "168, 85, 247",  // Purple
+    SPEAKING: "255, 255, 255", // White
+    IDLE: "50, 50, 50"
   };
   const activeColor = colors[state] || colors.IDLE;
 
   return (
-    <main className="h-screen w-full bg-[#020508] flex flex-col items-center justify-center overflow-hidden font-sans select-none">
+    <main className="h-screen w-full bg-[#030303] flex flex-col items-center justify-center overflow-hidden font-mono text-white">
       
-      {/* 1. THE GRID BACKGROUND */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none" 
-        style={{ backgroundImage: `radial-gradient(circle at 2px 2px, rgba(${activeColor}, 0.5) 1px, transparent 0)`, backgroundSize: '40px 40px' }} 
-      />
+      {/* BACKGROUND EFFECTS */}
+      <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(#1a1a1a_1px,transparent_1px)] [background-size:20px_20px]" />
 
-      {/* 2. THE MAIN ORB ASSEMBLY */}
-      <div className="relative z-10 scale-75 md:scale-100">
-        {/* Animated Outer Ring */}
-        <div className="absolute -inset-20 border border-cyan-500/20 rounded-full animate-[spin_20s_linear_infinite]" />
-        <div className="absolute -inset-16 border-t border-b border-cyan-400/40 rounded-full animate-[spin_10s_linear_infinite_reverse]" />
-        
-        {/* The Reactive Orb */}
+      {/* REACTIVE ORB UNIT */}
+      <div className="relative group">
         <div 
-          className="relative w-64 h-64 rounded-full flex items-center justify-center transition-all duration-300 border-[3px]"
+          className="w-72 h-72 rounded-full border border-white/10 flex items-center justify-center transition-all duration-300 relative"
           style={{ 
-            borderColor: `rgba(${activeColor}, 0.8)`,
-            boxShadow: `0 0 ${20 + volume * 100}px rgba(${activeColor}, 0.4), inset 0 0 40px rgba(${activeColor}, 0.2)`
+            boxShadow: `0 0 ${40 + volume * 120}px rgba(${activeColor}, 0.2)`,
+            borderColor: `rgba(${activeColor}, 0.4)`
           }}
         >
-          {/* Inner Core */}
-          <div className="w-12 h-12 rounded-full bg-white/20 border border-white/40 shadow-[0_0_20px_white]" />
+          {/* Animated Ring */}
+          <div className="absolute inset-2 border border-dashed border-white/20 rounded-full animate-[spin_15s_linear_infinite]" />
           
-          {/* Audio Wave Visualizer (SVG) */}
-          <svg className="absolute inset-0 w-full h-full rotate-[-90deg]">
-             <circle 
-              cx="128" cy="128" r="120" 
-              fill="transparent" 
-              stroke={`rgba(${activeColor}, 0.3)`} 
-              strokeWidth="4" 
-              strokeDasharray="10 5" 
-            />
-          </svg>
+          {/* Inner Glow */}
+          <div 
+            className="w-24 h-24 rounded-full transition-all duration-75"
+            style={{ 
+              backgroundColor: `rgba(${activeColor}, ${0.1 + volume})`,
+              boxShadow: `0 0 ${20 + volume * 80}px rgba(${activeColor}, 0.6)`
+            }}
+          />
         </div>
       </div>
 
-      {/* 3. THE HUD PANEL */}
-      <div className="mt-24 w-full max-w-3xl relative">
-        {/* Header Label */}
-        <div className="flex justify-center mb-[-1px]">
-          <div className="px-8 py-1 bg-cyan-900/40 border-t border-x border-cyan-500/50 rounded-t-xl backdrop-blur-md">
-             <span className="text-[10px] tracking-[0.6em] text-cyan-400 font-bold">SYSTEM IDENTITY: MARK-85</span>
-          </div>
+      {/* DATA INTERFACE */}
+      <div className="mt-16 w-full max-w-2xl px-6">
+        <div className="flex items-center gap-4 mb-2">
+          <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-white/20" />
+          <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase font-bold">
+            Project Neural Core
+          </span>
+          <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-white/20" />
         </div>
 
-        {/* Main Box */}
-        <div className="relative bg-black/60 border border-cyan-500/50 backdrop-blur-xl p-10 rounded-xl shadow-[0_0_30px_rgba(0,255,255,0.1)] overflow-hidden">
-          {/* Scanning Line */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-cyan-400/50 animate-[scan_4s_linear_infinite]" />
+        <div className="bg-white/[0.02] border border-white/10 backdrop-blur-md p-8 rounded-sm shadow-2xl relative">
+          <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/50" />
           
-          {/* Sub-Info */}
-          <div className="flex justify-between items-center mb-6 opacity-60">
-            <span className="text-[8px] tracking-widest text-cyan-300 uppercase">Established Link: Stark_Secure_77</span>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${state !== "IDLE" ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-[8px] tracking-widest text-cyan-300 uppercase font-bold">{state}</span>
-            </div>
+          <div className="flex justify-between items-center mb-4 text-[9px] text-white/30 tracking-widest uppercase">
+            <span>Uptime: {Math.floor(performance.now()/1000)}s</span>
+            <span className={state !== 'IDLE' ? 'text-cyan-400' : 'text-white/20'}>{state}</span>
           </div>
 
-          {/* Transcript/Status */}
-          <div className="text-center">
-            <p className="text-2xl font-light text-cyan-100 tracking-wide drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] uppercase italic">
-              {status}
-            </p>
-          </div>
+          <p className="text-xl font-light text-white/90 min-h-[60px] leading-relaxed">
+            {status}
+          </p>
         </div>
       </div>
 
-      {/* 4. THE POWER BUTTON */}
+      {/* INITIALIZE */}
       {state === "IDLE" && (
         <button 
           onClick={startSystem}
-          className="mt-12 px-16 py-4 bg-cyan-950/20 border border-cyan-500/50 hover:bg-cyan-500/20 hover:scale-105 active:scale-95 transition-all text-cyan-400 tracking-[0.8em] font-bold text-[10px]"
+          className="mt-12 border border-white/20 px-8 py-3 text-[10px] tracking-[0.5em] hover:bg-white hover:text-black transition-all"
         >
-          INITIALIZE NEURAL LINK
+          WAKE SYSTEM
         </button>
       )}
-
-      {/* CSS Animations (Injected via Style tag for ease of copy-paste) */}
-      <style jsx>{`
-        @keyframes scan {
-          0% { top: 0; opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-      `}</style>
     </main>
   );
 }
