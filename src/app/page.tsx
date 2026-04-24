@@ -14,11 +14,11 @@ interface MemoryItem {
   const [volume, setVolume] = useState(0);
   const [memory, setMemory] = useState<MemoryItem[]>([]);
 
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<any(null);
   const animationRef = useRef<any>(null);
   const stateRef = useRef<JarvisState>("IDLE");
 
-  useEffect(() => { stateRef.current = state; }, [state]);
+  useEffect(() => { stateRef.current = state; }, [state
 
   // Boot Memory from LocalStorage
   useEffect(() => {
