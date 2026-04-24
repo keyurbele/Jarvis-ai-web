@@ -9,7 +9,6 @@ interface MemoryItem {
   value: string;
 }
 
-export default function Home() {
   const [state, setState] = useState<JarvisState>("IDLE");
   const [status, setStatus] = useState("SYSTEM READY");
   const [volume, setVolume] = useState(0);
