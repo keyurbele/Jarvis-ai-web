@@ -1,6 +1,12 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { 
+  SignInButton, 
+  UserButton, 
+  SignedOut, 
+  SignedIn 
+} from "@clerk/nextjs";
+import { 
   LucideBrain, LucideMic, LucideZap, LucideTerminal, 
   LucideCpu, LucideLayers, LucidePower, LucideCheckCircle, 
   LucideChevronRight, LucideShieldCheck, LucideGlobe
@@ -11,7 +17,6 @@ type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 export default function Home() {
   const [state, setState] = useState<JarvisState>("IDLE");
   const [status, setStatus] = useState("CORE_READY");
-  const [volume, setVolume] = useState(0);
   const stateRef = useRef<JarvisState>("IDLE");
 
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -27,14 +32,13 @@ export default function Home() {
   const startSystem = () => {
     setState("LISTENING");
     setStatus("LISTENING_FOR_INPUT");
-    // Standard Speech Recognition logic would go here
   };
 
   const activeColor = { 
-    LISTENING: "#3B82F6", // Premium Blue
-    THINKING: "#8B5CF6",  // Premium Purple
-    SPEAKING: "#F9FAFB",  // Primary White
-    IDLE: "#1F2A44"       // Surface Highlight
+    LISTENING: "#3B82F6", 
+    THINKING: "#8B5CF6",  
+    SPEAKING: "#F9FAFB",  
+    IDLE: "#1F2A44"       
   }[state];
 
   return (
@@ -49,16 +53,25 @@ export default function Home() {
             </div>
             <span className="font-bold text-xl tracking-tight">JARVIS</span>
           </div>
+          
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#9CA3AF]">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#demo" className="hover:text-white transition-colors">Interface</a>
             <a href="#" className="hover:text-white transition-colors">Docs</a>
           </div>
+
           <div className="flex items-center gap-4">
-            <button className="text-sm font-medium text-[#9CA3AF] hover:text-white transition-colors">Login</button>
-            <button className="px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-blue-500/20">
-              Get Started
-            </button>
+            {/* 🔐 CLERK AUTH BUTTONS */}
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-blue-500/20">
+                  Get Started
+                </button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
           </div>
         </div>
       </nav>
@@ -82,11 +95,8 @@ export default function Home() {
               Experience the next generation of voice-controlled system automation. Professional, secure, and built for modern workflows.
             </p>
             <div className="flex flex-wrap gap-4">
-              <button className="px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-bold flex items-center gap-2 hover:scale-[1.02] transition-all shadow-xl shadow-purple-500/10">
+              <button onClick={startSystem} className="px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-bold flex items-center gap-2 hover:scale-[1.02] transition-all shadow-xl shadow-purple-500/10">
                 Launch System <LucideChevronRight size={18} />
-              </button>
-              <button className="px-8 py-4 bg-white/5 border border-white/10 rounded-xl font-bold hover:bg-white/10 transition-all backdrop-blur-sm">
-                View Documentation
               </button>
             </div>
           </div>
@@ -118,19 +128,16 @@ export default function Home() {
       <section id="features" className="py-24 px-6 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Engineered for Excellence</h2>
-          <p className="text-[#9CA3AF] max-w-2xl mx-auto">Stripping away the fluff to provide a high-performance system controller that responds to your voice in milliseconds.</p>
+          <p className="text-[#9CA3AF] max-w-2xl mx-auto">High-performance system controller that responds to your voice in milliseconds.</p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { icon: <LucideBrain />, title: "Neural Memory", desc: "Learns and adapts to your workflow preferences seamlessly." },
-            { icon: <LucideZap />, title: "Zero Latency", desc: "Instant command execution bypassing traditional AI delays." },
-            { icon: <LucideShieldCheck />, title: "Enterprise Security", desc: "End-to-end encryption for all system-level interactions." },
-            { icon: <LucideGlobe />, title: "Web Integration", desc: "Direct bridge to search engines, GitHub, and cloud platforms." },
-            { icon: <LucideLayers />, title: "Bento Layout", desc: "Optimized dashboard designed for professional clarity." },
-            { icon: <LucideMic />, title: "Voice Precision", desc: "Advanced noise cancellation for accurate voice triggers." }
+            { icon: <LucideBrain />, title: "Neural Memory", desc: "Learns and adapts to your workflow preferences." },
+            { icon: <LucideZap />, title: "Zero Latency", desc: "Instant command execution bypassing AI delays." },
+            { icon: <LucideShieldCheck />, title: "Enterprise Security", desc: "End-to-end encryption for all interactions." }
           ].map((f, i) => (
-            <div key={i} className="p-8 rounded-2xl bg-[#141C2F] border border-white/5 hover:border-blue-500/30 hover:-translate-y-2 transition-all duration-300 group">
+            <div key={i} className="p-8 rounded-2xl bg-[#141C2F] border border-white/5 hover:border-blue-500/30 transition-all group">
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
                 {f.icon}
               </div>
@@ -143,60 +150,20 @@ export default function Home() {
 
       {/* 🧪 INTERACTIVE INTERFACE SECTION */}
       <section id="demo" className="py-24 px-6 bg-white/[0.01] border-y border-white/5">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          <div className="order-2 lg:order-1 flex justify-center">
-            {/* THE ORB UI */}
-            <div className="relative">
-              <div className="absolute -inset-12 border border-blue-500/5 rounded-full animate-[spin_20s_linear_infinite]" />
-              <button 
-                onClick={startSystem}
-                className="relative w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 bg-[#141C2F] border border-white/10 group"
-                style={{ boxShadow: `0 0 50px ${activeColor}15` }}
-              >
-                <div className="z-10 text-center">
-                  <div className="text-[10px] tracking-[0.5em] text-[#9CA3AF] uppercase mb-4">{state}</div>
-                  <LucideMic className={state !== 'IDLE' ? "text-blue-400" : "text-gray-600"} size={32} />
-                </div>
-                <div className="absolute inset-0 bg-blue-500/5 rounded-full animate-pulse" />
-              </button>
-            </div>
-          </div>
-          
-          <div className="order-1 lg:order-2">
-            <h2 className="text-4xl font-extrabold mb-6">Interactive Control</h2>
-            <p className="text-[#9CA3AF] mb-8 leading-relaxed">
-              Activate the neural core with a single click. Jarvis transitions from idle monitoring to active listening, processing your system requests in real-time.
-            </p>
-            <div className="space-y-4">
-              {["Voice Recognition Ready", "Instant Command Bridge Active", "Local System Connectivity"].map((text, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm font-medium">
-                  <LucideCheckCircle size={18} className="text-blue-500" /> {text}
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="max-w-7xl mx-auto flex flex-col items-center">
+            <button 
+              onClick={startSystem}
+              className="relative w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 bg-[#141C2F] border border-white/10 group"
+              style={{ boxShadow: `0 0 50px ${activeColor}30` }}
+            >
+              <div className="z-10 text-center">
+                <div className="text-[10px] tracking-[0.5em] text-[#9CA3AF] uppercase mb-4">{state}</div>
+                <LucideMic className={state !== 'IDLE' ? "text-blue-400" : "text-gray-600"} size={32} />
+              </div>
+              <div className="absolute inset-0 bg-blue-500/5 rounded-full animate-pulse" />
+            </button>
         </div>
       </section>
-
-      {/* 💰 FOOTER */}
-      <footer className="py-20 px-6 border-t border-white/5">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
-          <div>
-            <div className="flex items-center gap-2 mb-4 justify-center md:justify-start">
-              <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                <LucideCpu size={14} className="text-white" />
-              </div>
-              <span className="font-bold tracking-tight uppercase">Jarvis</span>
-            </div>
-            <p className="text-xs text-[#6B7280]">© 2026 KEYUR BELE. ALL RIGHTS RESERVED.</p>
-          </div>
-          <div className="flex gap-10 text-xs font-bold tracking-widest text-[#6B7280] uppercase">
-            <a href="#" className="hover:text-white transition-colors">Github</a>
-            <a href="#" className="hover:text-white transition-colors">LinkedIn</a>
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }
