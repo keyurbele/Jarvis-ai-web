@@ -1,64 +1,94 @@
 "use client";
-import { useState } from "react";
-import { LucideMic, LucideHome } from "lucide-react";
+import { useState, useEffect } from "react";
+import { LucideMic, LucideHome, LucideLoader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function Dashboard() {
   const [isListening, setIsListening] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [response, setResponse] = useState("");
+
+  // --- BRAIN LOGIC: Talking to the API ---
+  const handleChat = async (transcript: string) => {
+    setIsListening(false);
+    setIsThinking(true);
+    
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: transcript }),
+      });
+      
+      const data = await res.json();
+      setResponse(data.reply);
+      
+      // VOICE OUT: Make Jarvis speak
+      const utterance = new SpeechSynthesisUtterance(data.reply);
+      utterance.onend = () => setIsThinking(false);
+      window.speechSynthesis.speak(utterance);
+      
+    } catch (error) {
+      console.error("Jarvis Error:", error);
+      setIsThinking(false);
+    }
+  };
+
+  // --- EAR LOGIC: Microphone Access ---
+  const startListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return alert("Browser not supported");
+
+    const recognition = new SpeechRecognition();
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      handleChat(transcript); // Send what you said to the brain
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.start();
+  };
 
   return (
     <main className="min-h-screen bg-[#050A18] flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Background Atmosphere */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(17,24,39,1)_0%,rgba(2,6,23,1)_100%)]" />
 
-      <nav className="absolute top-0 w-full p-8 flex justify-between items-center z-50">
-        <Link href="/" className="text-blue-500/40 hover:text-blue-400 font-mono text-[10px] tracking-widest transition-all">
-          EXIT_INTERFACE
-        </Link>
-      </nav>
-
-      {/* --- THE NEURAL ORB CONTAINER --- */}
+      {/* THE NEURAL ORB */}
       <div 
-        onClick={() => setIsListening(!isListening)}
-        className="relative w-80 h-80 cursor-pointer group"
+        onClick={!isListening && !isThinking ? startListening : undefined}
+        className="relative w-80 h-80 cursor-pointer group z-30"
       >
-        {/* 1. The Outer Glass Shell */}
-        <div className="absolute inset-0 rounded-full border border-white/20 shadow-[0_0_80px_rgba(59,130,246,0.2)] backdrop-blur-[2px] z-20 overflow-hidden">
-          {/* Glass Highlight (The Shine) */}
-          <div className="absolute top-[10%] left-[15%] w-1/3 h-1/4 bg-gradient-to-br from-white/20 to-transparent rounded-full blur-sm" />
+        <div className={`absolute inset-0 rounded-full border border-white/20 transition-all duration-500 z-20 
+          ${isListening ? 'shadow-[0_0_100px_rgba(34,211,238,0.4)] scale-110' : ''}`} 
+        />
+
+        {/* Plasma Tendrils */}
+        <div className={`absolute inset-4 rounded-full z-10 transition-opacity duration-1000 ${isListening || isThinking ? 'opacity-100' : 'opacity-30'}`}>
+          <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-cyan-400 blur-[2px] animate-[spin_2s_linear_infinite]" />
+          <div className="absolute inset-4 rounded-full border-[2px] border-transparent border-l-purple-500 blur-[3px] animate-[spin_3s_linear_infinite_reverse]" />
         </div>
 
-        {/* 2. The Plasma Swirls (The Energy Tendrils) */}
-        <div className={`absolute inset-4 rounded-full z-10 transition-opacity duration-1000 ${isListening ? 'opacity-100' : 'opacity-40'}`}>
-          {/* Cyan Tendril */}
-          <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-cyan-400/60 blur-[2px] animate-[spin_3s_linear_infinite]" />
-          {/* Purple Tendril */}
-          <div className="absolute inset-2 rounded-full border-[2px] border-transparent border-l-purple-500/50 blur-[3px] animate-[spin_4s_linear_infinite_reverse]" />
-          {/* Secondary Blue Swirl */}
-          <div className="absolute inset-6 rounded-full border-[4px] border-transparent border-b-blue-400/40 blur-[4px] animate-[spin_2.5s_linear_infinite]" />
+        {/* Inner Core */}
+        <div className={`absolute inset-[35%] rounded-full z-10 blur-xl transition-all duration-700 
+          ${isListening ? 'bg-cyan-400' : isThinking ? 'bg-purple-500 animate-pulse' : 'bg-blue-600/20'}`} 
+        />
+        
+        <div className="absolute inset-[42%] rounded-full z-30 border border-white/30 bg-white/5 backdrop-blur-md flex items-center justify-center">
+           {isThinking ? <LucideLoader2 className="text-purple-400 animate-spin" size={32} /> : <LucideMic className={isListening ? "text-cyan-400" : "text-blue-900/40"} size={32} />}
         </div>
-
-        {/* 3. The Bright Central Core */}
-        <div className={`absolute inset-[35%] rounded-full z-10 blur-xl transition-all duration-700 ${isListening ? 'bg-cyan-300 shadow-[0_0_100px_#22d3ee]' : 'bg-blue-600/30'}`} />
-        <div className={`absolute inset-[42%] rounded-full z-30 border border-white/30 bg-white/10 backdrop-blur-md flex items-center justify-center transition-all ${isListening ? 'scale-110 shadow-[0_0_30px_rgba(255,255,255,0.8)]' : 'scale-100'}`}>
-           <LucideMic size={24} className={isListening ? "text-cyan-400 animate-pulse" : "text-blue-900/50"} />
-        </div>
-
-        {/* 4. Internal Glow Shadow */}
-        <div className="absolute inset-0 rounded-full shadow-[inset_0_0_100px_rgba(59,130,246,0.3)] z-10" />
       </div>
 
-      {/* UI Status Text */}
-      <div className="mt-16 text-center z-50">
-        <p className={`font-mono text-xs tracking-[0.6em] transition-all duration-500 ${isListening ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'text-blue-900'}`}>
-          {isListening ? "SYSTEM_ONLINE" : "STANDBY_MODE"}
+      {/* Status & Response */}
+      <div className="mt-12 text-center z-50 px-6 max-w-lg">
+        <p className="font-mono text-[10px] tracking-[0.5em] text-blue-500/50 uppercase mb-4">
+          {isListening ? "Listening..." : isThinking ? "Processing..." : "Tap to Speak"}
         </p>
-        {isListening && (
-            <div className="mt-4 flex gap-1 justify-center">
-                {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="w-[2px] h-4 bg-cyan-500/50 animate-bounce" style={{ animationDelay: `${i * 0.1}s` }} />
-                ))}
-            </div>
+        {response && (
+          <div className="p-4 rounded-lg bg-white/5 border border-white/10 backdrop-blur-md">
+            <p className="text-blue-100 font-light italic">"{response}"</p>
+          </div>
         )}
       </div>
     </main>
