@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link"; // Added this import
 import { 
   SignInButton, 
   UserButton, 
@@ -20,19 +21,6 @@ export default function Home() {
   const stateRef = useRef<JarvisState>("IDLE");
 
   useEffect(() => { stateRef.current = state; }, [state]);
-
-  const speak = (text: string) => {
-    window.speechSynthesis.cancel();
-    const speech = new SpeechSynthesisUtterance(text);
-    speech.onstart = () => setState("SPEAKING");
-    speech.onend = () => { if (stateRef.current === "SPEAKING") setState("LISTENING"); };
-    window.speechSynthesis.speak(speech);
-  };
-
-  const startSystem = () => {
-    setState("LISTENING");
-    setStatus("LISTENING_FOR_INPUT");
-  };
 
   const activeColor = { 
     LISTENING: "#3B82F6", 
@@ -57,11 +45,9 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#9CA3AF]">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#demo" className="hover:text-white transition-colors">Interface</a>
-            <a href="#" className="hover:text-white transition-colors">Docs</a>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* 🔐 CLERK AUTH BUTTONS */}
             <SignedOut>
               <SignInButton mode="modal">
                 <button className="px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-blue-500/20">
@@ -94,10 +80,14 @@ export default function Home() {
             <p className="text-lg text-[#9CA3AF] max-w-lg mb-10 leading-relaxed font-light">
               Experience the next generation of voice-controlled system automation. Professional, secure, and built for modern workflows.
             </p>
+            
+            {/* THIS BUTTON NOW TAKES YOU TO THE ORB PAGE */}
             <div className="flex flex-wrap gap-4">
-              <button onClick={startSystem} className="px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-bold flex items-center gap-2 hover:scale-[1.02] transition-all shadow-xl shadow-purple-500/10">
-                Launch System <LucideChevronRight size={18} />
-              </button>
+              <Link href="/dashboard">
+                <button className="px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-bold flex items-center gap-2 hover:scale-[1.02] transition-all shadow-xl shadow-purple-500/10">
+                  Launch System <LucideChevronRight size={18} />
+                </button>
+              </Link>
             </div>
           </div>
 
@@ -128,42 +118,24 @@ export default function Home() {
       <section id="features" className="py-24 px-6 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Engineered for Excellence</h2>
-          <p className="text-[#9CA3AF] max-w-2xl mx-auto">High-performance system controller that responds to your voice in milliseconds.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            { icon: <LucideBrain />, title: "Neural Memory", desc: "Learns and adapts to your workflow preferences." },
-            { icon: <LucideZap />, title: "Zero Latency", desc: "Instant command execution bypassing AI delays." },
-            { icon: <LucideShieldCheck />, title: "Enterprise Security", desc: "End-to-end encryption for all interactions." }
-          ].map((f, i) => (
-            <div key={i} className="p-8 rounded-2xl bg-[#141C2F] border border-white/5 hover:border-blue-500/30 transition-all group">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
-                {f.icon}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+            {[
+              { icon: <LucideBrain />, title: "Neural Memory", desc: "Learns and adapts to your workflow preferences." },
+              { icon: <LucideZap />, title: "Zero Latency", desc: "Instant command execution bypassing AI delays." },
+              { icon: <LucideShieldCheck />, title: "Enterprise Security", desc: "End-to-end encryption for all interactions." }
+            ].map((f, i) => (
+              <div key={i} className="p-8 rounded-2xl bg-[#141C2F] border border-white/5 hover:border-blue-500/30 transition-all group">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
+                  {f.icon}
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-left">{f.title}</h3>
+                <p className="text-[#9CA3AF] text-sm leading-relaxed text-left">{f.desc}</p>
               </div>
-              <h3 className="text-xl font-bold mb-3">{f.title}</h3>
-              <p className="text-[#9CA3AF] text-sm leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* 🧪 INTERACTIVE INTERFACE SECTION */}
-      <section id="demo" className="py-24 px-6 bg-white/[0.01] border-y border-white/5">
-        <div className="max-w-7xl mx-auto flex flex-col items-center">
-            <button 
-              onClick={startSystem}
-              className="relative w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 bg-[#141C2F] border border-white/10 group"
-              style={{ boxShadow: `0 0 50px ${activeColor}30` }}
-            >
-              <div className="z-10 text-center">
-                <div className="text-[10px] tracking-[0.5em] text-[#9CA3AF] uppercase mb-4">{state}</div>
-                <LucideMic className={state !== 'IDLE' ? "text-blue-400" : "text-gray-600"} size={32} />
-              </div>
-              <div className="absolute inset-0 bg-blue-500/5 rounded-full animate-pulse" />
-            </button>
-        </div>
-      </section>
     </main>
   );
 }
