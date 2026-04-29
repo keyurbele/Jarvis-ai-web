@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { LucideMic, LucideHome, LucideLoader2, LucideBrain, LucideZap, LucideShieldCheck } from "lucide-react";
+import { LucideMic, LucideHome, LucideLoader2, LucideBrain, LucideZap } from "lucide-react";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -9,24 +9,37 @@ export default function Dashboard() {
   const [response, setResponse] = useState("");
   const recognitionRef = useRef<any>(null);
 
-  // 1. FORCED VOICE OUTPUT
+  // 1. JARVIS VOICE OUTPUT
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
     
-    // Stop any current talking
+    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // JARVIS Voice Settings
+    // JARVIS Voice Profile
     utterance.rate = 0.9; 
-    utterance.pitch = 1;
+    utterance.pitch = 1.0;
     
-    utterance.onstart = () => setIsThinking(true);
+    utterance.onstart = () => {
+      setIsThinking(true);
+      // Stop the mic while Jarvis is talking so he doesn't hear himself
+      if (recognitionRef.current) recognitionRef.current.stop();
+    };
+
     utterance.onend = () => {
       setIsThinking(false);
-      // Automatically keep listening if we are in "Active" mode
-      if (isListening) startListening();
+      // AUTO-RESTART LOOP: If we are still in "Active" mode, start listening again
+      if (isListening) {
+        setTimeout(() => {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            console.error("Mic restart failed:", e);
+          }
+        }, 400);
+      }
     };
 
     window.speechSynthesis.speak(utterance);
@@ -34,7 +47,6 @@ export default function Dashboard() {
 
   // 2. THE BRAIN: API CONNECTION
   const handleChat = async (transcript: string) => {
-    setIsListening(false);
     setIsThinking(true);
     
     try {
@@ -46,43 +58,65 @@ export default function Dashboard() {
       
       const data = await res.json();
       
-      // Filter out the technical logs your API is sending
+      // Filter out technical logs from the voice output
       const cleanReply = data.reply
-        .replace(/SYSTEM_REPLY:|Action for|logged and confirmed/gi, "")
+        .replace(/SYSTEM_REPLY:|Action for|logged and confirmed|\[.*?\]/gi, "")
         .trim();
 
       setResponse(cleanReply);
       speak(cleanReply);
       
     } catch (error) {
-      console.error("Link Error:", error);
+      console.error("Neural Link Error:", error);
       setIsThinking(false);
+      // If error, try to keep the mic alive
+      if (isListening) recognitionRef.current.start();
     }
   };
 
   // 3. THE EARS: SPEECH RECOGNITION
-  const startListening = () => {
+  const toggleSystem = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    if (!recognitionRef.current) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+    if (isListening) {
+      // Manual Shut Down
+      setIsListening(false);
+      if (recognitionRef.current) recognitionRef.current.stop();
+      window.speechSynthesis.cancel();
+    } else {
+      // System Startup
+      if (!recognitionRef.current) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = false; // We use false to handle segments
+        recognitionRef.current.interimResults = false;
 
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        handleChat(transcript);
-      };
+        recognitionRef.current.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          handleChat(transcript);
+        };
 
-      recognitionRef.current.onerror = () => setIsListening(false);
-      recognitionRef.current.onend = () => {
-        if (isListening && !isThinking) recognitionRef.current.start();
-      };
+        recognitionRef.current.onend = () => {
+          // Restart logic if the user didn't manually stop it
+          // and if we aren't currently thinking/speaking
+          if (isListening && !isThinking && !window.speechSynthesis.speaking) {
+            try {
+              recognitionRef.current.start();
+            } catch (e) {
+              /* Already running */
+            }
+          }
+        };
+
+        recognitionRef.current.onerror = (event: any) => {
+          if (event.error === 'no-speech') return; // Ignore silence timeouts
+          console.error("Mic Error:", event.error);
+        };
+      }
+
+      setIsListening(true);
+      recognitionRef.current.start();
     }
-
-    setIsListening(true);
-    recognitionRef.current.start();
   };
 
   return (
@@ -90,11 +124,13 @@ export default function Dashboard() {
       {/* Deep Space Background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(15,23,42,1)_0%,rgba(2,6,23,1)_100%)]" />
       
-      {/* --- NEURAL MEMORY STATS --- */}
+      {/* NEURAL STATS */}
       <div className="absolute top-12 flex gap-6 z-50 animate-in fade-in duration-1000">
         <div className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 backdrop-blur-sm">
           <LucideBrain size={14} className="text-cyan-400" />
-          <span className="text-[10px] font-mono tracking-[0.2em] text-cyan-400/80">NEURAL_MEMORY: READY</span>
+          <span className="text-[10px] font-mono tracking-[0.2em] text-cyan-400/80 uppercase">
+            {isListening ? "Neural_Link: Active" : "Neural_Link: Standby"}
+          </span>
         </div>
         <div className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-500/5 border border-purple-500/10 backdrop-blur-sm">
           <LucideZap size={14} className="text-purple-400" />
@@ -108,18 +144,18 @@ export default function Dashboard() {
         </Link>
       </nav>
 
-      {/* --- THE PLASMA ORB --- */}
+      {/* THE PLASMA ORB */}
       <div 
-        onClick={isListening ? () => setIsListening(false) : startListening}
+        onClick={toggleSystem}
         className="relative w-96 h-96 cursor-pointer group flex items-center justify-center"
       >
-        {/* Glass Outer Shell */}
+        {/* Glass Shell */}
         <div className={`absolute inset-0 rounded-full border border-white/10 z-40 transition-all duration-1000
           ${isListening ? 'shadow-[0_0_120px_rgba(34,211,238,0.3)] border-cyan-400/30' : 'shadow-[0_0_60px_rgba(59,130,246,0.05)]'}`}>
           <div className="absolute top-[10%] left-[20%] w-1/4 h-[15%] bg-white/10 rounded-full blur-md rotate-[30deg]" />
         </div>
 
-        {/* Energy Tendrils (Matches your image vibe) */}
+        {/* Energy Tendrils */}
         <div className={`absolute inset-8 rounded-full z-10 transition-opacity duration-700 ${isListening || isThinking ? 'opacity-100' : 'opacity-20'}`}>
           <div className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-cyan-400/80 blur-[1px] animate-[spin_1.5s_linear_infinite]" />
           <div className="absolute inset-4 rounded-full border-[2px] border-transparent border-l-purple-500/60 blur-[2px] animate-[spin_2.5s_linear_infinite_reverse]" />
@@ -140,10 +176,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- DATA LOGS --- */}
-      <div className="mt-12 text-center z-50 px-10 max-w-2xl">
+      {/* DATA LOGS */}
+      <div className="mt-12 text-center z-50 px-10 max-w-2xl min-h-[150px]">
         <div className={`mb-4 inline-block font-mono text-[9px] tracking-[0.8em] transition-all duration-500 ${isListening ? 'text-cyan-400' : 'text-blue-900'}`}>
-          {isListening ? "LINK_ACTIVE" : isThinking ? "DECRYPTING_DATA" : "LINK_STANDBY"}
+          {isThinking ? "DECRYPTING_DATA" : isListening ? "LINK_ACTIVE" : "LINK_STANDBY"}
         </div>
         
         {response && (
