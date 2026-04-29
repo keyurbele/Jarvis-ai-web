@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { LucideMic, LucideHome, LucideLoader2, LucideBrain, LucideZap, LucideShieldCheck } from "lucide-react";
 import Link from "next/link";
 
@@ -9,8 +9,32 @@ export default function Dashboard() {
   const [response, setResponse] = useState("");
   const recognitionRef = useRef<any>(null);
 
-  // --- BRAIN LOGIC ---
+  // 1. FORCED VOICE OUTPUT
+  const speak = (text: string) => {
+    if (!window.speechSynthesis) return;
+    
+    // Stop any current talking
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // JARVIS Voice Settings
+    utterance.rate = 0.9; 
+    utterance.pitch = 1;
+    
+    utterance.onstart = () => setIsThinking(true);
+    utterance.onend = () => {
+      setIsThinking(false);
+      // Automatically keep listening if we are in "Active" mode
+      if (isListening) startListening();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // 2. THE BRAIN: API CONNECTION
   const handleChat = async (transcript: string) => {
+    setIsListening(false);
     setIsThinking(true);
     
     try {
@@ -22,39 +46,37 @@ export default function Dashboard() {
       
       const data = await res.json();
       
-      // Clean up the reply: Remove "SYSTEM_REPLY:" if the API is sending it
-      const cleanReply = data.reply.replace(/SYSTEM_REPLY:|Action for|logged and confirmed/gi, "").trim();
+      // Filter out the technical logs your API is sending
+      const cleanReply = data.reply
+        .replace(/SYSTEM_REPLY:|Action for|logged and confirmed/gi, "")
+        .trim();
+
       setResponse(cleanReply);
-      
-      const utterance = new SpeechSynthesisUtterance(cleanReply);
-      utterance.onend = () => {
-        setIsThinking(false);
-        // RE-START LISTENING automatically so he stays "On"
-        if (isListening) startListening(); 
-      };
-      window.speechSynthesis.speak(utterance);
+      speak(cleanReply);
       
     } catch (error) {
-      console.error("Jarvis Error:", error);
+      console.error("Link Error:", error);
       setIsThinking(false);
     }
   };
 
+  // 3. THE EARS: SPEECH RECOGNITION
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
     if (!recognitionRef.current) {
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false; // We handle the "staying on" logic in the utterance end
-      
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         handleChat(transcript);
       };
 
+      recognitionRef.current.onerror = () => setIsListening(false);
       recognitionRef.current.onend = () => {
-        // If we're not thinking or speaking, keep the mic warm
         if (isListening && !isThinking) recognitionRef.current.start();
       };
     }
@@ -63,60 +85,72 @@ export default function Dashboard() {
     recognitionRef.current.start();
   };
 
-  const stopSystem = () => {
-    setIsListening(false);
-    if (recognitionRef.current) recognitionRef.current.stop();
-    window.speechSynthesis.cancel();
-  };
-
   return (
-    <main className="min-h-screen bg-[#050A18] flex flex-col items-center justify-center relative overflow-hidden text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(17,24,39,1)_0%,rgba(2,6,23,1)_100%)]" />
-
-      {/* memory/stats bar */}
-      <div className="absolute top-24 flex gap-8 z-50">
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/5 border border-blue-500/20">
-          <LucideBrain size={14} className="text-blue-400" />
-          <span className="text-[10px] font-mono tracking-widest text-blue-400/70">MEMORY: ACTIVE</span>
+    <main className="min-h-screen bg-[#020617] flex flex-col items-center justify-center relative overflow-hidden text-white selection:bg-cyan-500/30">
+      {/* Deep Space Background */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(15,23,42,1)_0%,rgba(2,6,23,1)_100%)]" />
+      
+      {/* --- NEURAL MEMORY STATS --- */}
+      <div className="absolute top-12 flex gap-6 z-50 animate-in fade-in duration-1000">
+        <div className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10 backdrop-blur-sm">
+          <LucideBrain size={14} className="text-cyan-400" />
+          <span className="text-[10px] font-mono tracking-[0.2em] text-cyan-400/80">NEURAL_MEMORY: READY</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/5 border border-purple-500/20">
+        <div className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-500/5 border border-purple-500/10 backdrop-blur-sm">
           <LucideZap size={14} className="text-purple-400" />
-          <span className="text-[10px] font-mono tracking-widest text-purple-400/70">LATENCY: 0.02ms</span>
+          <span className="text-[10px] font-mono tracking-[0.2em] text-purple-400/80">LATENCY: 0.01MS</span>
         </div>
       </div>
 
-      {/* THE ORB */}
+      <nav className="absolute top-0 w-full p-8 flex justify-between z-50">
+        <Link href="/" className="text-blue-500/30 hover:text-blue-400 transition-all font-mono text-[10px] tracking-widest">
+          TERMINATE_LINK
+        </Link>
+      </nav>
+
+      {/* --- THE PLASMA ORB --- */}
       <div 
-        onClick={isListening ? stopSystem : startListening}
-        className="relative w-80 h-80 cursor-pointer z-30"
+        onClick={isListening ? () => setIsListening(false) : startListening}
+        className="relative w-96 h-96 cursor-pointer group flex items-center justify-center"
       >
-        <div className={`absolute inset-0 rounded-full border border-white/20 z-40 transition-all duration-700
-          ${isListening ? 'shadow-[0_0_100px_rgba(34,211,238,0.4)] border-cyan-400/40' : 'shadow-[0_0_40px_rgba(59,130,246,0.1)]'}`}>
-          <div className="absolute top-[10%] left-[15%] w-1/3 h-1/4 bg-gradient-to-br from-white/20 to-transparent rounded-full blur-sm" />
+        {/* Glass Outer Shell */}
+        <div className={`absolute inset-0 rounded-full border border-white/10 z-40 transition-all duration-1000
+          ${isListening ? 'shadow-[0_0_120px_rgba(34,211,238,0.3)] border-cyan-400/30' : 'shadow-[0_0_60px_rgba(59,130,246,0.05)]'}`}>
+          <div className="absolute top-[10%] left-[20%] w-1/4 h-[15%] bg-white/10 rounded-full blur-md rotate-[30deg]" />
         </div>
 
-        {/* Swirling Energy */}
-        <div className={`absolute inset-4 rounded-full z-10 transition-opacity duration-1000 ${isListening || isThinking ? 'opacity-100' : 'opacity-20'}`}>
-          <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-cyan-400/60 blur-[2px] animate-[spin_2s_linear_infinite]" />
-          <div className="absolute inset-4 rounded-full border-[2px] border-transparent border-l-purple-500/50 blur-[3px] animate-[spin_3s_linear_infinite_reverse]" />
+        {/* Energy Tendrils (Matches your image vibe) */}
+        <div className={`absolute inset-8 rounded-full z-10 transition-opacity duration-700 ${isListening || isThinking ? 'opacity-100' : 'opacity-20'}`}>
+          <div className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-cyan-400/80 blur-[1px] animate-[spin_1.5s_linear_infinite]" />
+          <div className="absolute inset-4 rounded-full border-[2px] border-transparent border-l-purple-500/60 blur-[2px] animate-[spin_2.5s_linear_infinite_reverse]" />
+          <div className="absolute inset-8 rounded-full border-[1px] border-transparent border-b-blue-400/40 blur-[3px] animate-[spin_4s_linear_infinite]" />
         </div>
 
-        <div className={`absolute inset-[35%] rounded-full z-10 blur-2xl transition-all duration-700 
-          ${isListening ? 'bg-cyan-400' : isThinking ? 'bg-purple-500 animate-pulse' : 'bg-blue-900/20'}`} 
+        {/* The Core Heart */}
+        <div className={`absolute inset-[38%] rounded-full z-10 blur-3xl transition-all duration-700 
+          ${isListening ? 'bg-cyan-400 shadow-[0_0_80px_#22d3ee]' : isThinking ? 'bg-purple-600 animate-pulse' : 'bg-blue-900/10'}`} 
         />
         
-        <div className="absolute inset-[42%] rounded-full z-50 border border-white/10 bg-white/5 backdrop-blur-md flex items-center justify-center">
-           {isThinking ? <LucideLoader2 className="animate-spin text-purple-400" size={32} /> : <LucideMic className={isListening ? "text-cyan-400" : "text-blue-900/40"} size={32} />}
+        <div className="absolute inset-[44%] rounded-full z-50 border border-white/20 bg-white/5 backdrop-blur-xl flex items-center justify-center shadow-inner">
+           {isThinking ? (
+             <LucideLoader2 className="animate-spin text-purple-400" size={32} strokeWidth={1} />
+           ) : (
+             <LucideMic className={isListening ? "text-cyan-400 drop-shadow-[0_0_8px_#22d3ee]" : "text-blue-900/40"} size={32} strokeWidth={1.5} />
+           )}
         </div>
       </div>
 
-      <div className="mt-16 text-center z-50 px-8">
-        <p className="font-mono text-[10px] tracking-[0.5em] text-blue-500/50 uppercase mb-8">
-          {isListening ? "NEURAL_LINK_ESTABLISHED" : "CORE_STANDBY"}
-        </p>
+      {/* --- DATA LOGS --- */}
+      <div className="mt-12 text-center z-50 px-10 max-w-2xl">
+        <div className={`mb-4 inline-block font-mono text-[9px] tracking-[0.8em] transition-all duration-500 ${isListening ? 'text-cyan-400' : 'text-blue-900'}`}>
+          {isListening ? "LINK_ACTIVE" : isThinking ? "DECRYPTING_DATA" : "LINK_STANDBY"}
+        </div>
+        
         {response && (
-          <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4">
-            <p className="text-blue-100/90 font-light text-lg italic italic">"{response}"</p>
+          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 backdrop-blur-2xl shadow-2xl animate-in zoom-in-95 duration-500">
+            <p className="text-blue-50/90 font-light text-xl leading-relaxed italic tracking-wide">
+              "{response}"
+            </p>
           </div>
         )}
       </div>
