@@ -1,279 +1,170 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SignInButton, UserButton, SignedOut, SignedIn, useUser } from "@clerk/nextjs";
-import { LucideCpu, LucideMic, LucideMicOff, LucidePower } from "lucide-react";
+import { LucideCpu, LucideMic, LucideMicOff, LucidePower, LucideTerminal, LucideBrain } from "lucide-react";
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 
-type HistoryEntry = { role: "user" | "assistant"; content: string };
-
-type Memory = {
-  name?: string;
-  preferences?: string[];
-  deviceStates?: Record<string, string>;
-  otherFacts?: string[];
-};
-
-// ─────────────────────────────────────────────
-// FIX 1: safer API wrapper
-// ─────────────────────────────────────────────
-const groq = async (body: object) => {
-  return fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_GROQ_API_KEY}`,
-    },
-    body: JSON.stringify(body),
-  });
-};
-
-// ─────────────────────────────────────────────
-// FIX 2: stronger intent matching (prevents misses)
-// ─────────────────────────────────────────────
-function getInstantReply(msg: string, memory: Memory): string | null {
-  const m = msg.toLowerCase().trim();
-
-  if (["hi", "hey", "hello", "sup", "yo", "wassup"].includes(m))
-    return memory.name ? `Hey ${memory.name}, what's up?` : "Hey, what's good?";
-
-  if (m.includes("who built you") || m.includes("who made you") || m.includes("who created you"))
-    return "Keyur built me.";
-
-  if (m.includes("what's my name") || m.includes("what is my name"))
-    return memory.name ? `Your name is ${memory.name}.` : "You haven't told me your name yet.";
-
-  if (m.includes("light") && m.includes("on")) return "Done, lights are on.";
-  if (m.includes("light") && m.includes("off")) return "Done, lights are off.";
-
-  if (m.includes("fan") && m.includes("on")) return "Fan's on.";
-  if (m.includes("fan") && m.includes("off")) return "Fan's off.";
-
-  if (m.includes("ac") && m.includes("on")) return "AC's on.";
-  if (m.includes("ac") && m.includes("off")) return "AC's off.";
-
-  if (m.includes("lock")) return "Door's locked.";
-  if (m.includes("unlock")) return "Door's unlocked.";
-
-  return null;
-}
-
-// ─────────────────────────────────────────────
-// FIX 3: memory safety (no crashes)
-// ─────────────────────────────────────────────
-function getRelevantMemory(memory: Memory, message: string): string {
-  if (!memory) return "";
-
-  const msg = message.toLowerCase();
-  const lines: string[] = [];
-
-  if (memory.name) lines.push(`Name: ${memory.name}`);
-
-  const prefs =
-    memory.preferences?.filter(p =>
-      msg.split(" ").some(w => w.length > 3 && p.toLowerCase().includes(w))
-    ) || [];
-
-  if (prefs.length) lines.push(`Interests: ${prefs.join(", ")}`);
-
-  if (memory.otherFacts?.length)
-    lines.push(`Facts: ${memory.otherFacts.join(", ")}`);
-
-  if (memory.deviceStates && Object.keys(memory.deviceStates).length)
-    lines.push(
-      `Devices: ${Object.entries(memory.deviceStates)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(", ")}`
-    );
-
-  return lines.join("\n");
-}
-
-// ─────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────
 export default function JarvisOS() {
   const { user } = useUser();
-
   const [isActive, setIsActive] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [state, setState] = useState<JarvisState>("IDLE");
   const [transcript, setTranscript] = useState("");
   const [response, setResponse] = useState("");
-  const [memory, setMemory] = useState<Memory>({});
+  const [memory, setMemory] = useState<any>({});
   const [log, setLog] = useState<string[]>([]);
 
   const recognitionRef = useRef<any>(null);
-  const historyRef = useRef<HistoryEntry[]>([]);
-  const micOnRef = useRef(false);
+  const historyRef = useRef<any[]>([]);
   const stateRef = useRef<JarvisState>("IDLE");
-  const speakingRef = useRef(false);
+  const micOnRef = useRef(false);
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // ─────────────────────────────────────────────
-  // FIX 4: safe voice loading (prevents undefined crash)
-  // ─────────────────────────────────────────────
+  // Persistent Memory Sync
+  useEffect(() => {
+    if (user?.id) {
+      const saved = localStorage.getItem(`jarvis_mem_${user.id}`);
+      if (saved) setMemory(JSON.parse(saved));
+    }
+  }, [user?.id]);
+
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
-
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.9;
-    u.pitch = 0.8;
-
+    u.rate = 0.9; u.pitch = 0.8;
     u.onstart = () => {
       setState("SPEAKING");
-      speakingRef.current = true;
-      recognitionRef.current?.stop();
+      try { recognitionRef.current?.stop(); } catch {}
     };
-
     u.onend = () => {
-      speakingRef.current = false;
       if (micOnRef.current) {
         setState("LISTENING");
-        try { recognitionRef.current?.start(); } catch {}
-      } else {
-        setState("IDLE");
-      }
+        setTimeout(() => { try { recognitionRef.current?.start(); } catch {} }, 400);
+      } else { setState("IDLE"); }
     };
-
     window.speechSynthesis.speak(u);
   }, []);
 
-  // ─────────────────────────────────────────────
-  // FIX 5: robust API call handling
-  // ─────────────────────────────────────────────
   const askJarvis = useCallback(async (input: string) => {
     setState("THINKING");
     setTranscript(input);
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: input,
-          history: historyRef.current.slice(-16),
-          memory,
-        }),
+        body: JSON.stringify({ message: input, history: historyRef.current, memory }),
       });
-
       const data = await res.json();
-      const reply = data.reply || "Say that again?";
-
-      historyRef.current.push(
-        { role: "user", content: input },
-        { role: "assistant", content: reply }
-      );
-
-      setResponse(reply);
-      setMemory(data.memory || {});
-      setLog(prev => [`You: ${input}`, `JARVIS: ${reply}`, ...prev].slice(0, 8));
-
-      speak(reply);
-    } catch {
-      setState("IDLE");
-      setLog(prev => ["Connection error", ...prev]);
-    }
-  }, [memory, speak]);
-
-  // ─────────────────────────────────────────────
-  // FIX 6: speech recognition stability
-  // ─────────────────────────────────────────────
-  const setupRecognition = useCallback(() => {
-    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SR) return null;
-
-    const r = new SR();
-    r.continuous = true;
-    r.interimResults = false;
-    r.lang = "en-US";
-
-    r.onresult = (e: any) => {
-      if (stateRef.current !== "LISTENING") return;
-      if (speakingRef.current) return;
-
-      const text = e.results[e.results.length - 1][0].transcript.trim();
-      if (text) askJarvis(text);
-    };
-
-    r.onend = () => {
-      if (micOnRef.current && stateRef.current === "LISTENING") {
-        try { r.start(); } catch {}
+      setResponse(data.reply);
+      if (data.memory) {
+        setMemory(data.memory);
+        if (user?.id) localStorage.setItem(`jarvis_mem_${user.id}`, JSON.stringify(data.memory));
       }
-    };
+      historyRef.current = [...historyRef.current, { role: "user", content: input }, { role: "assistant", content: data.reply }].slice(-10);
+      setLog(prev => [`User: ${input}`, `JARVIS: ${data.reply}`, ...prev].slice(0, 5));
+      speak(data.reply);
+    } catch { setState("IDLE"); }
+  }, [memory, speak, user?.id]);
 
-    return r;
-  }, [askJarvis]);
-
-  const toggleMic = useCallback(() => {
-    if (!isActive) return;
-
+  const toggleMic = () => {
     if (micOnRef.current) {
       setMicOn(false);
-      recognitionRef.current?.stop();
       setState("IDLE");
+      try { recognitionRef.current?.stop(); } catch {}
     } else {
-      if (!recognitionRef.current)
-        recognitionRef.current = setupRecognition();
-
+      const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      if (!recognitionRef.current) {
+        recognitionRef.current = new SR();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.onresult = (e: any) => {
+          const text = e.results[e.results.length - 1][0].transcript;
+          if (e.results[e.results.length - 1].isFinal && stateRef.current === "LISTENING") askJarvis(text);
+        };
+      }
       setMicOn(true);
       setState("LISTENING");
-      recognitionRef.current?.start();
+      recognitionRef.current.start();
     }
-  }, [isActive, setupRecognition]);
-
-  const launchSystem = useCallback(() => {
-    setIsActive(true);
-    setTimeout(() => speak("Hey, I'm JARVIS. Ready when you are."), 300);
-  }, [speak]);
-
-  const shutdown = useCallback(() => {
-    window.speechSynthesis.cancel();
-    recognitionRef.current?.stop();
-    setMicOn(false);
-    setIsActive(false);
-    setState("IDLE");
-    setLog([]);
-  }, []);
-
-  const color = "#22d3ee";
+  };
 
   return (
-    <main className="min-h-screen bg-[#020917] text-white font-mono">
-      
+    <main className="min-h-screen bg-[#020917] text-white font-mono overflow-hidden selection:bg-cyan-500/30">
+      {/* 🧭 NAVIGATION BAR */}
+      <nav className="fixed top-0 w-full z-50 border-b border-white/5 backdrop-blur-xl bg-[#020917]/60">
+        <div className="max-w-7xl mx-auto px-6 h-[72px] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <LucideCpu size={20} className="text-cyan-400" />
+            <span className="font-bold text-xl tracking-tighter">JARVIS<span className="text-cyan-400 font-light">OS</span></span>
+          </div>
+          <div className="flex items-center gap-4">
+            <SignedOut><SignInButton mode="modal"><button className="text-xs tracking-widest px-4 py-2 border border-white/10 rounded-full">SIGN IN</button></SignInButton></SignedOut>
+            <SignedIn><UserButton /></SignedIn>
+          </div>
+        </div>
+      </nav>
+
       {!isActive ? (
         <div className="flex items-center justify-center min-h-screen">
-          <button onClick={launchSystem}>
-            INITIALIZE SYSTEM
-          </button>
+          <div className="text-center">
+            <h1 className="text-8xl font-black tracking-tighter mb-8">JARVIS</h1>
+            <button onClick={() => { setIsActive(true); speak("System initialized. How can I help you today?"); }} className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all">INITIALIZE SYSTEM</button>
+          </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center min-h-screen gap-10">
-
-          <div className="text-center">
-            <p>{state}</p>
-            {transcript && <p>"{transcript}"</p>}
+        <div className="max-w-7xl mx-auto grid grid-cols-12 gap-8 pt-32 px-6 h-screen">
+          
+          {/* LEFT: MEMORY PANEL */}
+          <div className="col-span-3 space-y-6">
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md">
+              <div className="flex items-center gap-2 mb-4 text-cyan-400/50 text-[10px] uppercase tracking-widest">
+                <LucideBrain size={14} /> Memory_Core
+              </div>
+              <div className="text-[11px] text-gray-400 space-y-2">
+                {memory.name ? <p>User: {memory.name}</p> : <p>Identity: Unknown</p>}
+                {memory.preferences?.map((p: string, i: number) => <p key={i}>• {p}</p>)}
+              </div>
+            </div>
           </div>
 
-          {response && <p>"{response}"</p>}
-
-          <div className="flex gap-6">
-            <button onClick={toggleMic}>
-              {micOn ? <LucideMic /> : <LucideMicOff />}
-            </button>
-
-            <button onClick={shutdown}>
-              <LucidePower />
-            </button>
+          {/* CENTER: ORB UI */}
+          <div className="col-span-6 flex flex-col items-center">
+            <div className={`relative w-80 h-80 rounded-full flex items-center justify-center transition-all duration-1000 ${state !== 'IDLE' ? 'scale-110' : 'scale-100'}`}
+              style={{ boxShadow: state === 'LISTENING' ? '0 0 100px #22d3ee22' : 'none', border: `1px solid ${state === 'LISTENING' ? '#22d3ee40' : '#ffffff10'}` }}>
+              <div className="absolute inset-0 rounded-full border border-cyan-500/10 animate-[spin_10s_linear_infinite]" />
+              <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400' : 'text-gray-600'} />
+            </div>
+            <div className="mt-12 text-center">
+              <p className="text-xs tracking-[0.5em] text-cyan-400 mb-4">{state}</p>
+              <p className="text-lg italic text-gray-300 max-w-md">"{response || "Awaiting input..."}"</p>
+            </div>
+            
+            {/* CONTROLS */}
+            <div className="flex gap-4 mt-12">
+              <button onClick={toggleMic} className={`p-6 rounded-full border transition-all ${micOn ? 'bg-cyan-500/20 border-cyan-500' : 'bg-white/5 border-white/10'}`}>
+                {micOn ? <LucideMic size={24} className="text-cyan-400" /> : <LucideMicOff size={24} />}
+              </button>
+              <button onClick={() => window.location.reload()} className="p-6 rounded-full bg-red-500/10 border border-red-500/20 text-red-500"><LucidePower size={24} /></button>
+            </div>
           </div>
 
-          {log.map((l, i) => (
-            <p key={i}>{l}</p>
-          ))}
+          {/* RIGHT: LOG PANEL */}
+          <div className="col-span-3">
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+              <div className="flex items-center gap-2 mb-4 text-gray-500 text-[10px] uppercase tracking-widest">
+                <LucideTerminal size={14} /> System_Logs
+              </div>
+              <div className="space-y-3">
+                {log.map((l, i) => <p key={i} className="text-[10px] text-gray-500 font-mono truncate">{l}</p>)}
+              </div>
+            </div>
+          </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </main>
   );
 }
