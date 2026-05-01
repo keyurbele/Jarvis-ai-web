@@ -6,7 +6,7 @@ import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/n
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS" | "LOGS";
 
-export default function JarvisOS() {
+export default function JarvisOS() {a
   const { user, isLoaded } = useUser();
   const [activeTab, setActiveTab] = useState<ActiveTab>("VOICE");
   const [isActive, setIsActive] = useState(false);
