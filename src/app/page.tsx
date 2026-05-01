@@ -38,8 +38,8 @@ export default function JarvisOS() {
     const u = new SpeechSynthesisUtterance(text);
     
     // THE GOLDEN RATIO: Deep, charming, masculine
-    u.pitch = 0.45; 
-    u.rate = 0.85;  
+    u.pitch = 0.75; 
+    u.rate = 0.80;  
     u.volume = 1.0; 
 
     const voices = window.speechSynthesis.getVoices();
