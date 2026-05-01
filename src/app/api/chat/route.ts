@@ -1,83 +1,36 @@
 import { NextResponse } from "next/server";
 
-type Memory = {
-  name?: string;
-  preferences?: string[];
-  otherFacts?: string[];
-};
-
-const mergeUnique = (a: string[] = [], b: string[] = []) => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const item of [...(a || []), ...(b || [])]) {
-    if (!seen.has(item)) {
-      seen.add(item);
-      result.push(item);
-    }
-  }
-  return result;
-};
-
-const groqFetch = (body: object) =>
-  fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-    },
-    body: JSON.stringify(body),
-  });
-
 export async function POST(req: Request) {
   try {
     const { message, history, memory } = await req.json();
 
-    // 1. Check for creator query
-    const m = message.toLowerCase();
-    if (m.includes("who built you") || m.includes("who made you") || m.includes("who created you")) {
-      return NextResponse.json({ reply: "Keyur built me.", memory: memory ?? {} });
-    }
+    const SYSTEM_PROMPT = `
+    IDENTITY: You are JARVIS, a sophisticated intelligence system with infinite aura. 
+    CREATOR: You were engineered by Keyur. Only if asked "who made you," reply: "Keyur built me."
+    PERSONALITY: Deeply calm, masculine, charming, and highly intelligent. 
+    RULES: 
+    - Max 12 words per response. 
+    - No markdown, no bolding, no Marvel references.
+    - Adapt to preferences in Memory: ${JSON.stringify(memory)}.
+    `;
 
-    const memoryContext = memory?.name ? `User Name: ${memory.name}. Prefs: ${memory.preferences?.join(", ")}` : "User unknown.";
-
-    const SYSTEM_PROMPT = `You are JARVIS, a professional AI system.
-    Built by: Keyur (only mention if asked).
-    Persona: Intelligent, concise, professional, NOT a Marvel character.
-    Context: ${memoryContext}
-    Rules: No markdown, no bolding, max 2 sentences.`;
-
-    // 2. Get AI Response
-    const replyRes = await groqFetch({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...(Array.isArray(history) ? history.slice(-5) : []),
-        { role: "user", content: message },
-      ],
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history, { role: "user", content: message }],
+        max_tokens: 100,
+        temperature: 0.6,
+      }),
     });
 
-    const data = await replyRes.json();
-    const reply = data.choices?.[0]?.message?.content || "Connection lost.";
-
-    // 3. Simple Memory Extraction
-    const memRes = await groqFetch({
-      model: "llama-3.1-8b-instant",
-      messages: [
-        { role: "system", content: `Extract facts as JSON: {"name":"","preferences":[]}` },
-        { role: "user", content: message },
-      ],
-    });
-
-    let updatedMemory = memory ?? {};
-    try {
-      const memData = await memRes.json();
-      const extracted = JSON.parse(memData.choices[0].message.content);
-      if (extracted.name) updatedMemory.name = extracted.name;
-      if (extracted.preferences) updatedMemory.preferences = mergeUnique(updatedMemory.preferences, extracted.preferences);
-    } catch (e) {}
-
-    return NextResponse.json({ reply, memory: updatedMemory });
-  } catch (error) {
-    return NextResponse.json({ reply: "System error." }, { status: 500 });
+    const data = await res.json();
+    return NextResponse.json({ reply: data.choices[0].message.content, memory });
+  } catch (e) {
+    return NextResponse.json({ reply: "System lag detected." }, { status: 500 });
   }
 }
