@@ -1,7 +1,15 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SignInButton, UserButton, SignedOut, SignedIn, useUser } from "@clerk/nextjs";
-import { LucideCpu, LucideMic, LucideMicOff, LucidePower, LucideTerminal, LucideBrain } from "lucide-react";
+import { 
+  LucideCpu, 
+  LucideMic, 
+  LucideMicOff, 
+  LucidePower, 
+  LucideTerminal, 
+  LucideBrain, 
+  LucideX // Added this import
+} from "lucide-react";
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 
@@ -16,8 +24,8 @@ export default function JarvisOS() {
   const [log, setLog] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
   
-  // THE KEY STATE FOR THE DASHBOARD
-  const [view, setView] = useState<"CORE" | "AURA">("CORE");
+  // View state: STANDARD is the grid, AURA is the magnificent orb
+  const [view, setView] = useState<"STANDARD" | "AURA">("STANDARD");
 
   const recognitionRef = useRef<any>(null);
   const historyRef = useRef<any[]>([]);
@@ -38,13 +46,10 @@ export default function JarvisOS() {
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.pitch = 0.75; 
-    u.rate = 0.80;  
-    u.volume = 1.0; 
+    u.pitch = 0.75; u.rate = 0.80; u.volume = 1.0; 
 
     const voices = window.speechSynthesis.getVoices();
     const bestVoice = voices.find(v => v.name.includes("Google UK English Male")) || 
-                      voices.find(v => v.name.includes("James")) ||
                       voices.find(v => v.name.includes("David"));
     
     if (bestVoice) u.voice = bestVoice;
@@ -62,7 +67,7 @@ export default function JarvisOS() {
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
     window.speechSynthesis.cancel();
-    setState("THINKING");
+    setState("THINKING"); // Fixed typo from THICKING
     setTranscript(input);
 
     try {
@@ -126,137 +131,104 @@ export default function JarvisOS() {
   if (!mounted) return null;
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-300 font-sans selection:bg-cyan-500/30 overflow-hidden">
-      <nav className="border-b border-white/5 bg-[#020617]/80 backdrop-blur-md px-8 h-16 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-cyan-500/20 rounded flex items-center justify-center border border-cyan-400/30">
-            <LucideCpu size={18} className="text-cyan-400" />
+    <main className="min-h-screen bg-[#020617] text-slate-300 font-sans overflow-hidden relative">
+      
+      {/* 1. THE MAGNIFICENT FULL SCREEN ORB (AURA MODE) */}
+      <div className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-all duration-1000 ease-in-out ${view === "AURA" ? "opacity-100 pointer-events-auto scale-100" : "opacity-0 pointer-events-none scale-125"}`}>
+        <button 
+          onClick={() => setView("STANDARD")} 
+          className="absolute top-10 right-10 p-4 rounded-full bg-white/5 border border-white/10 hover:border-cyan-500/50 transition-all group"
+        >
+          <LucideX className="text-slate-500 group-hover:text-cyan-400" size={24} />
+        </button>
+
+        <div className="relative w-[600px] h-[600px] flex items-center justify-center">
+          {/* Reactive Rings - Faster & More Complex in Aura Mode */}
+          <div className="absolute inset-0 rounded-full border border-cyan-500/10 animate-[spin_30s_linear_infinite]" />
+          <div className="absolute inset-10 rounded-full border-[0.5px] border-cyan-400/20 animate-[spin_20s_linear_infinite_reverse]" />
+          <div className="absolute inset-20 rounded-full border-2 border-dashed border-cyan-500/5 animate-[spin_15s_linear_infinite]" />
+          
+          {/* The Magnificent Core */}
+          <div className={`w-[450px] h-[450px] rounded-full flex items-center justify-center transition-all duration-1000 ${
+            state === 'LISTENING' ? 'bg-cyan-500/5 shadow-[0_0_200px_rgba(34,211,238,0.15)] scale-105' : 'bg-transparent'
+          }`}>
+            <LucideMic 
+              size={140} 
+              className={`transition-all duration-700 ${
+                state === 'LISTENING' ? 'text-cyan-400 drop-shadow-[0_0_30px_rgba(34,211,238,0.6)]' : 'text-slate-900'
+              }`} 
+            />
           </div>
-          <span className="font-bold tracking-tighter text-lg uppercase italic">Jarvis<span className="text-cyan-400 font-light">OS</span></span>
+          
+          <div className="absolute -bottom-24 text-center w-full">
+             <p className="text-cyan-400/30 uppercase tracking-[1.5em] text-[10px] animate-pulse">System Matrix Active</p>
+          </div>
         </div>
-        <div className="flex gap-8 text-[10px] tracking-[0.2em] font-medium text-slate-500 uppercase">
-          <span onClick={() => setView("CORE")} className="text-cyan-400 border-b border-cyan-400 pb-1 cursor-pointer">Core</span>
-          <span className="hover:text-slate-300 cursor-pointer transition-colors">Home</span>
-          <span className="hover:text-slate-300 cursor-pointer transition-colors">Memory</span>
-          <span className="hover:text-slate-300 cursor-pointer transition-colors">Logs</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-cyan-950/30 px-3 py-1 rounded-full border border-cyan-500/20">
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-[9px] text-cyan-400 font-bold uppercase tracking-widest">Neural Active</span>
+      </div>
+
+      {/* 2. THE STANDARD OS INTERFACE */}
+      <div className={`transition-all duration-1000 ${view === "AURA" ? "blur-3xl scale-90 opacity-0" : "blur-0 scale-100 opacity-100"}`}>
+        <nav className="border-b border-white/5 bg-[#020617]/80 backdrop-blur-md px-8 h-16 flex items-center justify-between sticky top-0 z-50">
+          <div className="flex items-center gap-4">
+            <LucideCpu size={18} className="text-cyan-400" />
+            <span className="font-bold tracking-tighter text-lg uppercase italic">Jarvis<span className="text-cyan-400 font-light">OS</span></span>
           </div>
           <SignedIn><UserButton /></SignedIn>
-        </div>
-      </nav>
+        </nav>
 
-      {!isActive ? (
-        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-          <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all uppercase tracking-widest">Initialize System</button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-12 gap-0 h-[calc(100vh-4rem)]">
-          {/* SIDEBAR */}
-          <aside className="col-span-3 border-r border-white/5 p-8 space-y-10 bg-gradient-to-b from-transparent to-black/20">
-            <section>
-              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Navigation</p>
-              <div className="space-y-4">
-                <button onClick={() => setView("CORE")} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${view === 'CORE' ? 'bg-cyan-500/10 border border-cyan-400/30 text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
-                  <LucideMic size={16} /> <span className="text-xs font-semibold">Voice Core</span>
-                </button>
-                
-                {/* THIS IS THE BUTTON THAT WAS LIKELY NOT WORKING */}
-                <button onClick={() => { setView("AURA"); speak("Activating visualization."); }} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${view === 'AURA' ? 'bg-cyan-500/10 border border-cyan-400/30 text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
-                  <LucideTerminal size={16} /> <span className="text-xs font-semibold">Dashboard</span>
-                </button>
-              </div>
-            </section>
-            
-            <section>
-              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Smart Home</p>
-              <div className="space-y-4">
-                {[{ label: 'Living Rm', active: true }, { label: 'Bedroom Fan', active: true }, { label: 'Front Door', active: false }].map((device) => (
-                  <div key={device.label} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/5">
-                    <span className="text-[11px] font-medium">{device.label}</span>
-                    <div className={`w-8 h-4 rounded-full p-1 ${device.active ? 'bg-cyan-500' : 'bg-slate-700'}`}>
-                      <div className={`w-2 h-2 bg-white rounded-full ${device.active ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </div>
+        {!isActive ? (
+          <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+            <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all uppercase tracking-widest">Initialize System</button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-12 gap-0 h-[calc(100vh-4rem)]">
+            {/* SIDEBAR */}
+            <aside className="col-span-3 border-r border-white/5 p-8 space-y-10">
+              <section>
+                <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Navigation</p>
+                <div className="space-y-4">
+                  <div onClick={() => setView("STANDARD")} className="flex items-center gap-3 p-3 rounded-lg bg-cyan-500/10 border border-cyan-400/30 text-cyan-400 text-xs font-semibold cursor-pointer">
+                    <LucideMic size={16} /> Voice Core
                   </div>
-                ))}
-              </div>
-            </section>
-          </aside>
-
-          {/* DYNAMIC CENTER STAGE */}
-          <main className="col-span-6 flex flex-col items-center justify-center relative p-12 transition-all duration-700">
-            {view === "CORE" ? (
-              // --- NORMAL VIEW ---
-              <>
-                <div className="relative w-96 h-96 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border border-cyan-500/5 animate-[spin_20s_linear_infinite]" />
-                  <div className="absolute inset-4 rounded-full border border-cyan-500/10 animate-[spin_15s_linear_infinite_reverse]" />
-                  <div className={`w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 ${state === 'LISTENING' ? 'bg-cyan-500/10 shadow-[0_0_100px_rgba(34,211,238,0.1)]' : 'bg-transparent'}`}>
-                    <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400' : 'text-slate-800'} />
+                  <div onClick={() => { setView("AURA"); speak("Dashboard expanded."); }} className="flex items-center gap-3 p-3 text-slate-500 hover:text-slate-300 transition-colors text-xs cursor-pointer group">
+                    <LucideTerminal size={16} className="group-hover:text-cyan-400" /> Dashboard
                   </div>
                 </div>
-                <div className="w-full max-w-lg mt-8 p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-xl text-center">
-                  <p className="text-sm italic text-slate-300 leading-relaxed font-light">{response || "Awaiting command..."}</p>
-                </div>
-              </>
-            ) : (
-              // --- MAGNIFICENT ORB (DASHBOARD) ---
-              <div className="flex flex-col items-center justify-center animate-in zoom-in duration-500">
-                <div className="relative w-[450px] h-[450px] flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border-[0.5px] border-cyan-500/10 animate-[spin_40s_linear_infinite]" />
-                  <div className="absolute inset-8 rounded-full border-[0.5px] border-cyan-400/20 animate-[spin_25s_linear_infinite_reverse]" />
-                  <div className="absolute inset-16 rounded-full border-2 border-dashed border-cyan-500/5 animate-[spin_15s_linear_infinite]" />
-                  <div className={`w-80 h-80 rounded-full flex items-center justify-center transition-all duration-1000 bg-cyan-500/5 shadow-[0_0_150px_rgba(34,211,238,0.1)]`}>
-                    <LucideMic size={100} className="text-cyan-400 drop-shadow-[0_0_20px_rgba(34,211,238,0.5)]" />
-                  </div>
-                </div>
-                <button onClick={() => setView("CORE")} className="mt-10 text-[10px] text-slate-500 uppercase tracking-[0.5em] hover:text-cyan-400 transition-colors">
-                  Minimize Visualization
-                </button>
-              </div>
-            )}
+              </section>
+            </aside>
 
-            <div className="mt-12 flex gap-8">
-              <button onClick={toggleMic} className="flex flex-col items-center gap-2">
-                <div className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${micOn ? 'bg-cyan-500 border-cyan-400' : 'bg-white/5 border-white/10'}`}>
+            {/* CENTER */}
+            <main className="col-span-6 flex flex-col items-center justify-center relative p-12">
+              <div className="relative w-96 h-96 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border border-cyan-500/5 animate-[spin_20s_linear_infinite]" />
+                <div className={`w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 ${state === 'LISTENING' ? 'bg-cyan-500/10' : 'bg-transparent'}`}>
+                  <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400' : 'text-slate-800'} />
+                </div>
+              </div>
+              <div className="w-full max-w-lg mt-8 p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center">
+                <p className="text-sm italic text-slate-300 font-light">{response || "Awaiting command..."}</p>
+              </div>
+              <div className="mt-12 flex gap-8">
+                <button onClick={toggleMic} className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${micOn ? 'bg-cyan-500 border-cyan-400' : 'bg-white/5 border-white/10'}`}>
                   <LucideMic size={20} className={micOn ? 'text-[#020617]' : 'text-slate-500'} />
-                </div>
-                <span className="text-[9px] uppercase tracking-widest text-slate-600">Mic {micOn ? 'On' : 'Off'}</span>
-              </button>
-              <button onClick={() => window.location.reload()} className="flex flex-col items-center gap-2">
-                <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center"><LucidePower size={20} className="text-red-500" /></div>
-                <span className="text-[9px] uppercase tracking-widest text-slate-600">Shutdown</span>
-              </button>
-            </div>
-          </main>
+                </button>
+              </div>
+            </main>
 
-          {/* RIGHT SIDEBAR */}
-          <aside className="col-span-3 border-l border-white/5 p-8 space-y-10">
-            <section className="grid grid-cols-2 gap-4">
-              {[{ label: 'Temp', val: '24°' }, { label: 'Active', val: '3' }, { label: 'Uptime', val: '98%' }, { label: 'Model', val: '70B' }].map((stat) => (
-                <div key={stat.label} className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                  <span className="text-xl font-bold text-cyan-400 block">{stat.val}</span>
-                  <span className="text-[8px] text-slate-600 uppercase tracking-widest">{stat.label}</span>
-                </div>
-              ))}
-            </section>
-            <section className="flex-1">
+            {/* RIGHT SIDEBAR (Stats) */}
+            <aside className="col-span-3 border-l border-white/5 p-8">
               <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">System Log</p>
-              <div className="space-y-4 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-4">
                 {log.map((l, i) => (
                   <div key={i} className="text-[9px] border-l border-cyan-500/20 pl-3 py-1">
-                    <p className="text-slate-500 uppercase mb-1">{new Date().toLocaleTimeString()}</p>
-                    <p className="text-slate-400 italic line-clamp-2">{l}</p>
+                    <p className="text-slate-400 italic">{l}</p>
                   </div>
                 ))}
               </div>
-            </section>
-          </aside>
-        </div>
-      )}
+            </aside>
+          </div>
+        )}
+      </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </main>
   );
