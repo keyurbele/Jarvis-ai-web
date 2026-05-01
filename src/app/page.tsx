@@ -15,6 +15,9 @@ export default function JarvisOS() {
   const [memory, setMemory] = useState<any>({});
   const [log, setLog] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
+  
+  // THE KEY STATE FOR THE DASHBOARD
+  const [view, setView] = useState<"CORE" | "AURA">("CORE");
 
   const recognitionRef = useRef<any>(null);
   const historyRef = useRef<any[]>([]);
@@ -32,7 +35,6 @@ export default function JarvisOS() {
     }
   }, [user?.id]);
 
-  // --- 1. THE MOUTH (VOICE REMAINS UNCHANGED) ---
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -57,7 +59,6 @@ export default function JarvisOS() {
     window.speechSynthesis.speak(u);
   }, []);
 
-  // --- 2. THE BRAIN (LOGIC REMAINS UNCHANGED) ---
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
     window.speechSynthesis.cancel();
@@ -84,7 +85,6 @@ export default function JarvisOS() {
     } catch { setState("IDLE"); }
   }, [memory, speak, user?.id]);
 
-  // --- 3. THE EARS (INTERRUPT LOGIC UNCHANGED) ---
   const setupRecognition = useCallback(() => {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SR) return null;
@@ -127,7 +127,6 @@ export default function JarvisOS() {
 
   return (
     <main className="min-h-screen bg-[#020617] text-slate-300 font-sans selection:bg-cyan-500/30 overflow-hidden">
-      {/* HEADER */}
       <nav className="border-b border-white/5 bg-[#020617]/80 backdrop-blur-md px-8 h-16 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="w-8 h-8 bg-cyan-500/20 rounded flex items-center justify-center border border-cyan-400/30">
@@ -136,7 +135,7 @@ export default function JarvisOS() {
           <span className="font-bold tracking-tighter text-lg uppercase italic">Jarvis<span className="text-cyan-400 font-light">OS</span></span>
         </div>
         <div className="flex gap-8 text-[10px] tracking-[0.2em] font-medium text-slate-500 uppercase">
-          <span className="text-cyan-400 border-b border-cyan-400 pb-1 cursor-pointer">Core</span>
+          <span onClick={() => setView("CORE")} className="text-cyan-400 border-b border-cyan-400 pb-1 cursor-pointer">Core</span>
           <span className="hover:text-slate-300 cursor-pointer transition-colors">Home</span>
           <span className="hover:text-slate-300 cursor-pointer transition-colors">Memory</span>
           <span className="hover:text-slate-300 cursor-pointer transition-colors">Logs</span>
@@ -150,28 +149,28 @@ export default function JarvisOS() {
         </div>
       </nav>
 
-      {/* DASHBOARD LAYOUT */}
       {!isActive ? (
         <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all uppercase tracking-widest">Initialize System</button>
         </div>
       ) : (
         <div className="grid grid-cols-12 gap-0 h-[calc(100vh-4rem)]">
-          {/* LEFT SIDEBAR */}
+          {/* SIDEBAR */}
           <aside className="col-span-3 border-r border-white/5 p-8 space-y-10 bg-gradient-to-b from-transparent to-black/20">
             <section>
               <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Navigation</p>
               <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-cyan-500/10 border border-cyan-400/30 text-cyan-400 text-xs font-semibold">
-                  <LucideMic size={16} /> Voice Core
-                </div>
-                {['Dashboard', 'Memory', 'Settings'].map((item) => (
-                  <div key={item} className="flex items-center gap-3 p-3 text-slate-500 hover:text-slate-300 transition-colors text-xs cursor-pointer">
-                    <LucideTerminal size={16} /> {item}
-                  </div>
-                ))}
+                <button onClick={() => setView("CORE")} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${view === 'CORE' ? 'bg-cyan-500/10 border border-cyan-400/30 text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                  <LucideMic size={16} /> <span className="text-xs font-semibold">Voice Core</span>
+                </button>
+                
+                {/* THIS IS THE BUTTON THAT WAS LIKELY NOT WORKING */}
+                <button onClick={() => { setView("AURA"); speak("Activating visualization."); }} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${view === 'AURA' ? 'bg-cyan-500/10 border border-cyan-400/30 text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                  <LucideTerminal size={16} /> <span className="text-xs font-semibold">Dashboard</span>
+                </button>
               </div>
             </section>
+            
             <section>
               <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Smart Home</p>
               <div className="space-y-4">
@@ -187,18 +186,39 @@ export default function JarvisOS() {
             </section>
           </aside>
 
-          {/* CENTER INTERFACE */}
-          <main className="col-span-6 flex flex-col items-center justify-center relative p-12">
-            <div className="relative w-96 h-96 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border border-cyan-500/5 animate-[spin_20s_linear_infinite]" />
-              <div className="absolute inset-4 rounded-full border border-cyan-500/10 animate-[spin_15s_linear_infinite_reverse]" />
-              <div className={`w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 ${state === 'LISTENING' ? 'bg-cyan-500/10 shadow-[0_0_100px_rgba(34,211,238,0.1)]' : 'bg-transparent'}`}>
-                <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400' : 'text-slate-800'} />
+          {/* DYNAMIC CENTER STAGE */}
+          <main className="col-span-6 flex flex-col items-center justify-center relative p-12 transition-all duration-700">
+            {view === "CORE" ? (
+              // --- NORMAL VIEW ---
+              <>
+                <div className="relative w-96 h-96 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border border-cyan-500/5 animate-[spin_20s_linear_infinite]" />
+                  <div className="absolute inset-4 rounded-full border border-cyan-500/10 animate-[spin_15s_linear_infinite_reverse]" />
+                  <div className={`w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 ${state === 'LISTENING' ? 'bg-cyan-500/10 shadow-[0_0_100px_rgba(34,211,238,0.1)]' : 'bg-transparent'}`}>
+                    <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400' : 'text-slate-800'} />
+                  </div>
+                </div>
+                <div className="w-full max-w-lg mt-8 p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-xl text-center">
+                  <p className="text-sm italic text-slate-300 leading-relaxed font-light">{response || "Awaiting command..."}</p>
+                </div>
+              </>
+            ) : (
+              // --- MAGNIFICENT ORB (DASHBOARD) ---
+              <div className="flex flex-col items-center justify-center animate-in zoom-in duration-500">
+                <div className="relative w-[450px] h-[450px] flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-[0.5px] border-cyan-500/10 animate-[spin_40s_linear_infinite]" />
+                  <div className="absolute inset-8 rounded-full border-[0.5px] border-cyan-400/20 animate-[spin_25s_linear_infinite_reverse]" />
+                  <div className="absolute inset-16 rounded-full border-2 border-dashed border-cyan-500/5 animate-[spin_15s_linear_infinite]" />
+                  <div className={`w-80 h-80 rounded-full flex items-center justify-center transition-all duration-1000 bg-cyan-500/5 shadow-[0_0_150px_rgba(34,211,238,0.1)]`}>
+                    <LucideMic size={100} className="text-cyan-400 drop-shadow-[0_0_20px_rgba(34,211,238,0.5)]" />
+                  </div>
+                </div>
+                <button onClick={() => setView("CORE")} className="mt-10 text-[10px] text-slate-500 uppercase tracking-[0.5em] hover:text-cyan-400 transition-colors">
+                  Minimize Visualization
+                </button>
               </div>
-            </div>
-            <div className="w-full max-w-lg mt-8 p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-xl text-center">
-              <p className="text-sm italic text-slate-300 leading-relaxed font-light">{response || "Awaiting command..."}</p>
-            </div>
+            )}
+
             <div className="mt-12 flex gap-8">
               <button onClick={toggleMic} className="flex flex-col items-center gap-2">
                 <div className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${micOn ? 'bg-cyan-500 border-cyan-400' : 'bg-white/5 border-white/10'}`}>
@@ -222,14 +242,6 @@ export default function JarvisOS() {
                   <span className="text-[8px] text-slate-600 uppercase tracking-widest">{stat.label}</span>
                 </div>
               ))}
-            </section>
-            <section>
-              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Memory</p>
-              <div className="flex flex-wrap gap-2">
-                {['Keyur', 'Likes coding', 'Night owl'].map(tag => (
-                  <span key={tag} className="px-3 py-1 rounded-full bg-cyan-500/5 border border-cyan-500/20 text-[9px] text-cyan-400 uppercase tracking-wider">• {tag}</span>
-                ))}
-              </div>
             </section>
             <section className="flex-1">
               <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">System Log</p>
