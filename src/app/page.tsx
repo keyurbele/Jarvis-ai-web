@@ -25,7 +25,6 @@ export default function JarvisOS() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // Persistent Memory Sync
   useEffect(() => {
     if (user?.id) {
       const saved = localStorage.getItem(`jarvis_mem_${user.id}`);
@@ -33,36 +32,39 @@ export default function JarvisOS() {
     }
   }, [user?.id]);
 
-  // --- 1. THE MOUTH (SPEAKING) ---
+  // --- 1. THE MOUTH (INFINITE AURA VOICE) ---
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.9; u.pitch = 0.8;
     
-    u.onstart = () => {
-      setState("SPEAKING");
-      // Temporarily stop recognition to avoid feedback, 
-      // but the "Interrupt" logic in onresult handles the restart.
-    };
+    // THE GOLDEN RATIO: Deep, charming, masculine
+    u.pitch = 0.36; 
+    u.rate = 0.82;  
+    u.volume = 1.0; 
 
+    const voices = window.speechSynthesis.getVoices();
+    const bestVoice = voices.find(v => v.name.includes("Google UK English Male")) || 
+                      voices.find(v => v.name.includes("James")) ||
+                      voices.find(v => v.name.includes("David"));
+    
+    if (bestVoice) u.voice = bestVoice;
+
+    u.onstart = () => setState("SPEAKING");
     u.onend = () => {
       if (micOnRef.current) {
         setState("LISTENING");
-        setTimeout(() => {
-          try { recognitionRef.current?.start(); } catch {}
-        }, 400);
-      } else {
-        setState("IDLE");
+        // Slight delay so he doesn't hear himself finish
+        setTimeout(() => { try { recognitionRef.current?.start(); } catch {} }, 350);
+      } else { 
+        setState("IDLE"); 
       }
     };
     window.speechSynthesis.speak(u);
   }, []);
 
-  // --- 2. THE BRAIN (API CALL) ---
+  // --- 2. THE BRAIN (GROQ API) ---
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
-    
-    // Immediately stop speaking if we are sending a new command
     window.speechSynthesis.cancel();
     setState("THINKING");
     setTranscript(input);
@@ -87,28 +89,28 @@ export default function JarvisOS() {
         { role: "assistant", content: data.reply }
       ].slice(-10);
 
-      setLog(prev => [`User: ${input}`, `JARVIS: ${data.reply}`, ...prev].slice(0, 5));
+      setLog(prev => [`USER: ${input.toUpperCase()}`, `JARVIS: ${data.reply}`, ...prev].slice(0, 5));
       speak(data.reply);
     } catch {
       setState("IDLE");
     }
   }, [memory, speak, user?.id]);
 
-  // --- 3. THE EARS (INTERRUPTIBLE RECOGNITION) ---
+  // --- 3. THE EARS ---
   const setupRecognition = useCallback(() => {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SR) return null;
 
     const r = new SR();
     r.continuous = true;
-    r.interimResults = true; // CRITICAL: Allows hearing you mid-sentence
+    r.interimResults = true; 
     r.lang = "en-US";
 
     r.onresult = (e: any) => {
       const result = e.results[e.results.length - 1];
       const text = result[0].transcript.trim();
 
-      // INTERRUPT LOGIC: If user talks while JARVIS is speaking
+      // INTERRUPT: Stop speaking if user starts talking
       if (text.length > 2 && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         setState("LISTENING");
@@ -146,7 +148,6 @@ export default function JarvisOS() {
 
   return (
     <main className="min-h-screen bg-[#020917] text-white font-mono overflow-hidden selection:bg-cyan-500/30">
-      {/* 🧭 NAVIGATION */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 backdrop-blur-xl bg-[#020917]/60">
         <div className="max-w-7xl mx-auto px-6 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -169,7 +170,7 @@ export default function JarvisOS() {
       {!isActive ? (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <h1 className="text-8xl font-black tracking-tighter mb-8">JARVIS</h1>
+            <h1 className="text-8xl font-black tracking-tighter mb-8 animate-pulse">JARVIS</h1>
             <button 
               onClick={() => { setIsActive(true); speak("System initialized. I am online."); }} 
               className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all uppercase tracking-widest"
@@ -180,8 +181,6 @@ export default function JarvisOS() {
         </div>
       ) : (
         <div className="max-w-7xl mx-auto grid grid-cols-12 gap-8 pt-32 px-6 h-screen">
-          
-          {/* LEFT: MEMORY */}
           <div className="col-span-3 space-y-6">
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md">
               <div className="flex items-center gap-2 mb-4 text-cyan-400/50 text-[10px] uppercase tracking-widest">
@@ -194,7 +193,6 @@ export default function JarvisOS() {
             </div>
           </div>
 
-          {/* CENTER: ORB */}
           <div className="col-span-6 flex flex-col items-center">
             <div className={`relative w-80 h-80 rounded-full flex items-center justify-center transition-all duration-1000 ${state !== 'IDLE' ? 'scale-110' : 'scale-100'}`}
               style={{ 
@@ -212,7 +210,6 @@ export default function JarvisOS() {
               </p>
             </div>
             
-            {/* CONTROLS */}
             <div className="flex gap-6">
               <button onClick={toggleMic} className={`w-16 h-16 rounded-full border flex items-center justify-center transition-all ${micOn ? 'bg-cyan-500/20 border-cyan-500' : 'bg-white/5 border-white/10'}`}>
                 {micOn ? <LucideMic size={24} className="text-cyan-400" /> : <LucideMicOff size={24} className="text-gray-600" />}
@@ -223,7 +220,6 @@ export default function JarvisOS() {
             </div>
           </div>
 
-          {/* RIGHT: LOGS */}
           <div className="col-span-3">
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md">
               <div className="flex items-center gap-2 mb-4 text-gray-500 text-[10px] uppercase tracking-widest">
