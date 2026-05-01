@@ -32,12 +32,10 @@ export default function JarvisOS() {
     }
   }, [user?.id]);
 
-  // --- 1. THE MOUTH (INFINITE AURA VOICE) ---
+  // --- 1. THE MOUTH (VOICE REMAINS UNCHANGED) ---
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    
-    // THE GOLDEN RATIO: Deep, charming, masculine
     u.pitch = 0.75; 
     u.rate = 0.80;  
     u.volume = 1.0; 
@@ -53,16 +51,13 @@ export default function JarvisOS() {
     u.onend = () => {
       if (micOnRef.current) {
         setState("LISTENING");
-        // Slight delay so he doesn't hear himself finish
         setTimeout(() => { try { recognitionRef.current?.start(); } catch {} }, 350);
-      } else { 
-        setState("IDLE"); 
-      }
+      } else { setState("IDLE"); }
     };
     window.speechSynthesis.speak(u);
   }, []);
 
-  // --- 2. THE BRAIN (GROQ API) ---
+  // --- 2. THE BRAIN (LOGIC REMAINS UNCHANGED) ---
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
     window.speechSynthesis.cancel();
@@ -83,50 +78,34 @@ export default function JarvisOS() {
         if (user?.id) localStorage.setItem(`jarvis_mem_${user.id}`, JSON.stringify(data.memory));
       }
 
-      historyRef.current = [
-        ...historyRef.current, 
-        { role: "user", content: input }, 
-        { role: "assistant", content: data.reply }
-      ].slice(-10);
-
+      historyRef.current = [...historyRef.current, { role: "user", content: input }, { role: "assistant", content: data.reply }].slice(-10);
       setLog(prev => [`USER: ${input.toUpperCase()}`, `JARVIS: ${data.reply}`, ...prev].slice(0, 5));
       speak(data.reply);
-    } catch {
-      setState("IDLE");
-    }
+    } catch { setState("IDLE"); }
   }, [memory, speak, user?.id]);
 
-  // --- 3. THE EARS ---
+  // --- 3. THE EARS (INTERRUPT LOGIC UNCHANGED) ---
   const setupRecognition = useCallback(() => {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SR) return null;
-
     const r = new SR();
     r.continuous = true;
     r.interimResults = true; 
     r.lang = "en-US";
-
     r.onresult = (e: any) => {
       const result = e.results[e.results.length - 1];
       const text = result[0].transcript.trim();
-
-      // INTERRUPT: Stop speaking if user starts talking
       if (text.length > 2 && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         setState("LISTENING");
       }
-
-      if (result.isFinal) {
-        askJarvis(text);
-      }
+      if (result.isFinal) askJarvis(text);
     };
-
     r.onend = () => {
       if (micOnRef.current && stateRef.current !== "THINKING" && stateRef.current !== "SPEAKING") {
         try { r.start(); } catch {}
       }
     };
-
     return r;
   }, [askJarvis]);
 
@@ -147,92 +126,125 @@ export default function JarvisOS() {
   if (!mounted) return null;
 
   return (
-    <main className="min-h-screen bg-[#020917] text-white font-mono overflow-hidden selection:bg-cyan-500/30">
-      <nav className="fixed top-0 w-full z-50 border-b border-white/5 backdrop-blur-xl bg-[#020917]/60">
-        <div className="max-w-7xl mx-auto px-6 h-[72px] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <LucideCpu size={20} className="text-cyan-400" />
-            <span className="font-bold text-xl tracking-tighter uppercase">
-              JARVIS<span className="text-cyan-400 font-light ml-1">OS</span>
-            </span>
+    <main className="min-h-screen bg-[#020617] text-slate-300 font-sans selection:bg-cyan-500/30 overflow-hidden">
+      {/* HEADER */}
+      <nav className="border-b border-white/5 bg-[#020617]/80 backdrop-blur-md px-8 h-16 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-4">
+          <div className="w-8 h-8 bg-cyan-500/20 rounded flex items-center justify-center border border-cyan-400/30">
+            <LucideCpu size={18} className="text-cyan-400" />
           </div>
-          <div className="flex items-center gap-4">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <button className="text-[10px] tracking-widest px-4 py-2 border border-white/10 rounded-full hover:bg-white/5 transition-all">SIGN_IN</button>
-              </SignInButton>
-            </SignedOut>
-            <SignedIn><UserButton /></SignedIn>
+          <span className="font-bold tracking-tighter text-lg uppercase italic">Jarvis<span className="text-cyan-400 font-light">OS</span></span>
+        </div>
+        <div className="flex gap-8 text-[10px] tracking-[0.2em] font-medium text-slate-500 uppercase">
+          <span className="text-cyan-400 border-b border-cyan-400 pb-1 cursor-pointer">Core</span>
+          <span className="hover:text-slate-300 cursor-pointer transition-colors">Home</span>
+          <span className="hover:text-slate-300 cursor-pointer transition-colors">Memory</span>
+          <span className="hover:text-slate-300 cursor-pointer transition-colors">Logs</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-cyan-950/30 px-3 py-1 rounded-full border border-cyan-500/20">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-[9px] text-cyan-400 font-bold uppercase tracking-widest">Neural Active</span>
           </div>
+          <SignedIn><UserButton /></SignedIn>
         </div>
       </nav>
 
+      {/* DASHBOARD LAYOUT */}
       {!isActive ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <h1 className="text-8xl font-black tracking-tighter mb-8 animate-pulse">JARVIS</h1>
-            <button 
-              onClick={() => { setIsActive(true); speak("System initialized. I am online."); }} 
-              className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all uppercase tracking-widest"
-            >
-              Initialize System
-            </button>
-          </div>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-12 py-5 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all uppercase tracking-widest">Initialize System</button>
         </div>
       ) : (
-        <div className="max-w-7xl mx-auto grid grid-cols-12 gap-8 pt-32 px-6 h-screen">
-          <div className="col-span-3 space-y-6">
-            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md">
-              <div className="flex items-center gap-2 mb-4 text-cyan-400/50 text-[10px] uppercase tracking-widest">
-                <LucideBrain size={14} /> Memory_Core
+        <div className="grid grid-cols-12 gap-0 h-[calc(100vh-4rem)]">
+          {/* LEFT SIDEBAR */}
+          <aside className="col-span-3 border-r border-white/5 p-8 space-y-10 bg-gradient-to-b from-transparent to-black/20">
+            <section>
+              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Navigation</p>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-cyan-500/10 border border-cyan-400/30 text-cyan-400 text-xs font-semibold">
+                  <LucideMic size={16} /> Voice Core
+                </div>
+                {['Dashboard', 'Memory', 'Settings'].map((item) => (
+                  <div key={item} className="flex items-center gap-3 p-3 text-slate-500 hover:text-slate-300 transition-colors text-xs cursor-pointer">
+                    <LucideTerminal size={16} /> {item}
+                  </div>
+                ))}
               </div>
-              <div className="text-[11px] text-gray-400 space-y-2">
-                <p><span className="text-gray-600">User:</span> {memory.name || "Unknown"}</p>
-                {memory.preferences?.map((p: string, i: number) => <p key={i}>• {p}</p>)}
+            </section>
+            <section>
+              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Smart Home</p>
+              <div className="space-y-4">
+                {[{ label: 'Living Rm', active: true }, { label: 'Bedroom Fan', active: true }, { label: 'Front Door', active: false }].map((device) => (
+                  <div key={device.label} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                    <span className="text-[11px] font-medium">{device.label}</span>
+                    <div className={`w-8 h-4 rounded-full p-1 ${device.active ? 'bg-cyan-500' : 'bg-slate-700'}`}>
+                      <div className={`w-2 h-2 bg-white rounded-full ${device.active ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </div>
+            </section>
+          </aside>
 
-          <div className="col-span-6 flex flex-col items-center">
-            <div className={`relative w-80 h-80 rounded-full flex items-center justify-center transition-all duration-1000 ${state !== 'IDLE' ? 'scale-110' : 'scale-100'}`}
-              style={{ 
-                boxShadow: state === 'LISTENING' ? '0 0 80px #22d3ee22' : 'none', 
-                border: `1px solid ${state === 'LISTENING' ? '#22d3ee40' : '#ffffff10'}` 
-              }}>
-              <div className="absolute inset-0 rounded-full border border-cyan-500/10 animate-[spin_10s_linear_infinite]" />
-              <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400 animate-pulse' : 'text-gray-700'} />
+          {/* CENTER INTERFACE */}
+          <main className="col-span-6 flex flex-col items-center justify-center relative p-12">
+            <div className="relative w-96 h-96 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border border-cyan-500/5 animate-[spin_20s_linear_infinite]" />
+              <div className="absolute inset-4 rounded-full border border-cyan-500/10 animate-[spin_15s_linear_infinite_reverse]" />
+              <div className={`w-64 h-64 rounded-full flex items-center justify-center transition-all duration-700 ${state === 'LISTENING' ? 'bg-cyan-500/10 shadow-[0_0_100px_rgba(34,211,238,0.1)]' : 'bg-transparent'}`}>
+                <LucideMic size={48} className={state === 'LISTENING' ? 'text-cyan-400' : 'text-slate-800'} />
+              </div>
             </div>
-            
-            <div className="mt-12 text-center h-32">
-              <p className="text-[10px] tracking-[0.5em] text-cyan-400 mb-4 uppercase">{state}</p>
-              <p className="text-lg italic text-gray-300 max-w-md mx-auto leading-relaxed">
-                {response ? `"${response}"` : "Awaiting input..."}
-              </p>
+            <div className="w-full max-w-lg mt-8 p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-xl text-center">
+              <p className="text-sm italic text-slate-300 leading-relaxed font-light">{response || "Awaiting command..."}</p>
             </div>
-            
-            <div className="flex gap-6">
-              <button onClick={toggleMic} className={`w-16 h-16 rounded-full border flex items-center justify-center transition-all ${micOn ? 'bg-cyan-500/20 border-cyan-500' : 'bg-white/5 border-white/10'}`}>
-                {micOn ? <LucideMic size={24} className="text-cyan-400" /> : <LucideMicOff size={24} className="text-gray-600" />}
+            <div className="mt-12 flex gap-8">
+              <button onClick={toggleMic} className="flex flex-col items-center gap-2">
+                <div className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${micOn ? 'bg-cyan-500 border-cyan-400' : 'bg-white/5 border-white/10'}`}>
+                  <LucideMic size={20} className={micOn ? 'text-[#020617]' : 'text-slate-500'} />
+                </div>
+                <span className="text-[9px] uppercase tracking-widest text-slate-600">Mic {micOn ? 'On' : 'Off'}</span>
               </button>
-              <button onClick={() => window.location.reload()} className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-all">
-                <LucidePower size={24} />
+              <button onClick={() => window.location.reload()} className="flex flex-col items-center gap-2">
+                <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center"><LucidePower size={20} className="text-red-500" /></div>
+                <span className="text-[9px] uppercase tracking-widest text-slate-600">Shutdown</span>
               </button>
             </div>
-          </div>
+          </main>
 
-          <div className="col-span-3">
-            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md">
-              <div className="flex items-center gap-2 mb-4 text-gray-500 text-[10px] uppercase tracking-widest">
-                <LucideTerminal size={14} /> System_Logs
+          {/* RIGHT SIDEBAR */}
+          <aside className="col-span-3 border-l border-white/5 p-8 space-y-10">
+            <section className="grid grid-cols-2 gap-4">
+              {[{ label: 'Temp', val: '24°' }, { label: 'Active', val: '3' }, { label: 'Uptime', val: '98%' }, { label: 'Model', val: '70B' }].map((stat) => (
+                <div key={stat.label} className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                  <span className="text-xl font-bold text-cyan-400 block">{stat.val}</span>
+                  <span className="text-[8px] text-slate-600 uppercase tracking-widest">{stat.label}</span>
+                </div>
+              ))}
+            </section>
+            <section>
+              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">Memory</p>
+              <div className="flex flex-wrap gap-2">
+                {['Keyur', 'Likes coding', 'Night owl'].map(tag => (
+                  <span key={tag} className="px-3 py-1 rounded-full bg-cyan-500/5 border border-cyan-500/20 text-[9px] text-cyan-400 uppercase tracking-wider">• {tag}</span>
+                ))}
               </div>
-              <div className="space-y-3">
-                {log.map((l, i) => <p key={i} className="text-[9px] text-gray-500 font-mono truncate border-l border-white/10 pl-2">{l}</p>)}
+            </section>
+            <section className="flex-1">
+              <p className="text-[9px] text-slate-600 uppercase tracking-[0.3em] mb-6">System Log</p>
+              <div className="space-y-4 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {log.map((l, i) => (
+                  <div key={i} className="text-[9px] border-l border-cyan-500/20 pl-3 py-1">
+                    <p className="text-slate-500 uppercase mb-1">{new Date().toLocaleTimeString()}</p>
+                    <p className="text-slate-400 italic line-clamp-2">{l}</p>
+                  </div>
+                ))}
               </div>
-            </div>
-          </div>
+            </section>
+          </aside>
         </div>
       )}
-
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </main>
   );
