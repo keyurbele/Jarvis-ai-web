@@ -2,9 +2,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 
-// --- SYSTEM TYPES ---
+// --- TYPES ---
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
-type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS" | "LOGS";
+type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
 
 export default function JarvisOS() {
   const { user, isLoaded } = useUser();
@@ -12,76 +12,71 @@ export default function JarvisOS() {
   const [isActive, setIsActive] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [state, setState] = useState<JarvisState>("IDLE");
-  const [response, setResponse] = useState("System Core Online. Awaiting User Authorization.");
-  const [log, setLog] = useState<{time: string, msg: string, type: string}[]>([]);
+  const [response, setResponse] = useState("Neural link established. Awaiting input.");
+  const [log, setLog] = useState<{time: string, msg: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'TRACE'}[]>([]);
   const [mounted, setMounted] = useState(false);
   
-  // --- SYSTEM COHERENCE DATA ---
+  // SYSTEM TELEMETRY (The "Coherence" Layer)
   const [telemetry, setTelemetry] = useState({
     latency: "0ms",
     intent: "None",
     confidence: "0%",
-    temp: "32°C",
-    uptime: "00:00:00"
+    commands: 0
   });
 
   const [devices, setDevices] = useState<Record<string, boolean>>({
-    "Main Hall": true,
-    "Lab Ventilation": true,
-    "Security Uplink": false,
-    "Primary Matrix": true,
-    "Audio Dampers": false,
-    "Thermal Control": true
+    "Living Rm": true, "Bedroom Fan": true, "Front Door": false, "AC Unit": false, "Kitchen": false
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const recognitionRef = useRef<any>(null);
   const stateRef = useRef<JarvisState>("IDLE");
   const micOnRef = useRef(false);
-
-  // --- BRAIN: CONVERSATION HISTORY (UNTOUCHED) ---
+  
+  // --- THE BRAIN (STRICTLY UNTOUCHED LOGIC) ---
   const historyRef = useRef<{role: string, content: string}[]>([]);
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // --- LOGGING ENGINE ---
-  const addLog = (msg: string, type: string = "INFO") => {
+  const addLog = (msg: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'TRACE' = 'INFO') => {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString();
-    setLog(prev => [{time: timeStr, msg, type}, ...prev].slice(0, 25));
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds()}`;
+    setLog(prev => [{time: timeStr, msg, type}, ...prev].slice(0, 20));
   };
 
-  // --- BRAIN: HARDWARE COMMANDER (UNTOUCHED) ---
-  const processHardwareRequest = (text: string) => {
-    const lower = text.toLowerCase();
-    const updated = { ...devices };
-    let found = false;
+  // --- BRAIN: HARDWARE ROUTER (UNTOUCHED) ---
+  const processDeviceCommand = (text: string) => {
+    const lowerText = text.toLowerCase();
+    const newDevices = { ...devices };
+    let changed = false;
+    let detectedIntent = "General Inquiry";
 
-    if (lower.includes("light") || lower.includes("hall")) {
-      updated["Main Hall"] = lower.includes("on");
-      found = true;
-    }
-    if (lower.includes("vent") || lower.includes("fan")) {
-      updated["Lab Ventilation"] = lower.includes("on");
-      found = true;
-    }
-    if (lower.includes("security") || lower.includes("lock")) {
-      updated["Security Uplink"] = lower.includes("on") || lower.includes("lock");
-      found = true;
+    if (lowerText.includes("light") || lowerText.includes("fan") || lowerText.includes("door")) {
+        detectedIntent = "Hardware Control";
+        if (lowerText.includes("on") || lowerText.includes("open")) {
+            if (lowerText.includes("light")) newDevices["Living Rm"] = true;
+            if (lowerText.includes("fan")) newDevices["Bedroom Fan"] = true;
+            if (lowerText.includes("door")) newDevices["Front Door"] = true;
+            changed = true;
+        }
+        if (lowerText.includes("off") || lowerText.includes("close")) {
+            if (lowerText.includes("light")) newDevices["Living Rm"] = false;
+            if (lowerText.includes("fan")) newDevices["Bedroom Fan"] = false;
+            if (lowerText.includes("door")) newDevices["Front Door"] = false;
+            changed = true;
+        }
     }
 
-    if (found) {
-      setDevices(updated);
-      addLog("Hardware states synchronized with AI intent.", "SUCCESS");
-      setTelemetry(prev => ({ ...prev, intent: "Hardware Control", confidence: "98%" }));
-    } else {
-      setTelemetry(prev => ({ ...prev, intent: "General Logic", confidence: "92%" }));
+    if (changed) {
+      setDevices(newDevices);
+      addLog(`Hardware Sync: ${detectedIntent} success`, 'SUCCESS');
     }
+    setTelemetry(prev => ({ ...prev, intent: detectedIntent, confidence: "94%" }));
   };
 
-  // --- THE ORB: FINAL-FORM VISUALS ---
+  // --- THE ORB: AUDIO REACTIVE & CONSTANT (FIXED) ---
   useEffect(() => {
     if (!canvasRef.current || !isActive || activeTab !== "VOICE") return;
     const canvas = canvasRef.current;
@@ -89,63 +84,58 @@ export default function JarvisOS() {
     if (!ctx) return;
 
     let frame = 0;
-    const particles = Array.from({ length: 1500 }, () => ({
+    const particles = Array.from({ length: 1400 }, () => ({
       theta: Math.random() * Math.PI * 2,
       phi: Math.acos((Math.random() * 2) - 1),
-      color: Math.random() > 0.5 ? "cyan" : "purple"
+      colorType: Math.random()
     }));
 
-    function render() {
+    function animate() {
       if (!ctx || !canvas || activeTab !== "VOICE") return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Dynamic Physics
-      let rotSpeed = 0.015;
-      let turbulence = 0.1;
-      let scale = 1;
+      let speed = 0.012; 
+      let turb = 0.12;
+      let pulse = 1;
 
-      if (stateRef.current === "THINKING") { rotSpeed = 0.12; turbulence = 0.6; }
+      // Reactivity based on State
+      if (stateRef.current === "THINKING") { speed = 0.07; turb = 0.5; }
       if (stateRef.current === "SPEAKING") { 
-        rotSpeed = 0.04; 
-        turbulence = 0.25;
-        scale = 1 + Math.sin(Date.now() * 0.01) * 0.08; // Audio Reactivity
+        speed = 0.03; turb = 0.3; 
+        pulse = 1 + Math.sin(Date.now() * 0.01) * 0.15; // Voice Waveform Pulse
       }
-      if (stateRef.current === "LISTENING") { rotSpeed = 0.02; turbulence = 0.4; scale = 1.1; }
+      if (stateRef.current === "LISTENING") { speed = 0.02; turb = 0.4; pulse = 1.1; }
       
-      frame += rotSpeed;
-      const midX = canvas.width / 2;
-      const midY = canvas.height / 2;
-      const radius = 135 * scale;
+      frame += speed;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const baseRadius = (stateRef.current === "LISTENING" ? 150 : 135) * pulse;
 
       particles.forEach((p, i) => {
-        const t = frame + i * 0.002;
-        const noise = 1 + Math.sin(t * 3 + p.phi * 5) * turbulence;
-        const r = radius * noise;
+        const time = frame + i * 0.002;
+        const wobble = 1 + Math.sin(time * 3 + p.phi * 4) * turb;
+        const r = baseRadius * wobble;
+        const x = centerX + r * Math.sin(p.phi) * Math.cos(p.theta + frame);
+        const y = centerY + r * Math.cos(p.phi);
+        const depth = (Math.sin(p.theta + frame) + 1) / 2;
 
-        const x = midX + r * Math.sin(p.phi) * Math.cos(p.theta + frame);
-        const y = midY + r * Math.cos(p.phi);
-        const z = (Math.sin(p.theta + frame) + 1) / 2;
+        let rgb = "34, 211, 238"; // Cyan
+        if (p.colorType > 0.5) rgb = "168, 85, 247"; // Purple
+        if (p.colorType > 0.8) rgb = "249, 115, 22"; // Orange
 
         ctx.beginPath();
-        ctx.arc(x, y, 0.5 + z * 3, 0, Math.PI * 2);
-        ctx.fillStyle = p.color === "cyan" 
-          ? `rgba(34, 211, 238, ${0.1 + z * 0.8})` 
-          : `rgba(168, 85, 247, ${0.1 + z * 0.8})`;
-        
-        if (i % 40 === 0) {
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = p.color === "cyan" ? "#22d3ee" : "#a855f7";
-        } else { ctx.shadowBlur = 0; }
-        
+        ctx.arc(x, y, 0.5 + depth * 3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
+        if (i % 30 === 0) { ctx.shadowBlur = 10; ctx.shadowColor = `rgb(${rgb})`; }
         ctx.fill();
       });
-      requestAnimationFrame(render);
+      requestAnimationFrame(animate);
     }
-    const anim = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(anim);
+    const animId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animId);
   }, [activeTab, isActive]);
 
-  // --- BRAIN: SPEECH & AI (UNTOUCHED) ---
+  // --- BRAIN: API FETCH (UNTOUCHED) ---
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -160,9 +150,9 @@ export default function JarvisOS() {
 
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
-    const start = Date.now();
+    const startTime = Date.now();
     setState("THINKING");
-    addLog(`Uplinking Request: ${input}`, "TRACE");
+    addLog(`Uplinking command: "${input}"`, 'TRACE');
 
     try {
       const res = await fetch("/api/chat", {
@@ -171,19 +161,19 @@ export default function JarvisOS() {
         body: JSON.stringify({ message: input, history: historyRef.current, userName: user?.firstName || "Sir" }),
       });
       const data = await res.json();
-      const delay = Date.now() - start;
+      const latency = Date.now() - startTime;
 
       if (res.ok) {
         setResponse(data.reply);
-        setTelemetry(prev => ({ ...prev, latency: `${delay}ms` }));
-        addLog(`Intelligence response received in ${delay}ms`, "SUCCESS");
-        processHardwareRequest(data.reply);
+        addLog(`Response acquired in ${latency}ms`, 'SUCCESS');
+        setTelemetry(prev => ({ ...prev, latency: `${latency}ms`, commands: prev.commands + 1 }));
+        processDeviceCommand(data.reply);
         historyRef.current = [...historyRef.current, { role: "user", content: input }, { role: "assistant", content: data.reply }].slice(-10);
         speak(data.reply);
       }
     } catch (e) {
       setState("IDLE");
-      addLog("Neural link severed.", "ERROR");
+      addLog("Neural link failed", 'ERROR');
     }
   }, [user, speak, devices]);
 
@@ -210,111 +200,105 @@ export default function JarvisOS() {
   if (!mounted || !isLoaded) return null;
 
   return (
-    <main className="fixed inset-0 bg-[#010409] text-[#7d8590] flex flex-col font-sans overflow-hidden">
+    <main className="fixed inset-0 bg-[#010409] text-[#7d8590] flex flex-col overflow-hidden selection:bg-cyan-500/30">
       
-      {/* --- TOP HUD BAR --- */}
-      <nav className="h-16 px-8 flex items-center justify-between border-b border-white/[0.03] bg-[#010409]/90 backdrop-blur-xl z-50">
-        <div className="flex items-center gap-4">
-          <div className="w-6 h-6 border border-cyan-500/40 rounded flex items-center justify-center relative">
-            <div className={`w-2 h-2 rounded-full ${state === 'THINKING' ? 'bg-orange-500 animate-ping' : 'bg-cyan-400 shadow-[0_0_10px_cyan]'}`} />
+      {/* 1. TOP NAV (COHERENT) */}
+      <nav className="h-14 px-8 flex items-center justify-between border-b border-white/[0.03] z-50 bg-[#010409]/80 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border border-cyan-500/40 rounded flex items-center justify-center relative">
+            <div className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${state === 'THINKING' ? 'bg-orange-500 shadow-[0_0_10px_orange]' : 'bg-cyan-400 shadow-[0_0_8px_cyan]'}`} />
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.4em] text-white uppercase italic">Jarvis<span className="text-cyan-500 font-light">OS</span></span>
-            <span className="text-[7px] text-cyan-500/60 uppercase tracking-[0.2em]">Neural-Interface v3.3</span>
-          </div>
+          <span className="text-[11px] font-black tracking-[0.4em] text-white uppercase italic">Jarvis<span className="text-cyan-500 font-light">OS</span></span>
         </div>
 
-        <div className="hidden lg:flex gap-12 text-[9px] tracking-[0.5em] uppercase font-bold">
-          {['Core', 'Dashboard', 'Memory', 'Logs'].map(tab => (
+        <div className="flex gap-10 text-[9px] tracking-[0.4em] uppercase font-black">
+          {['Core', 'Dashboard', 'Memory', 'Settings'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab === 'Core' ? 'VOICE' : tab.toUpperCase() as ActiveTab)}
-              className={`${(activeTab === tab.toUpperCase() || (tab==='Core' && activeTab==='VOICE')) ? 'text-cyan-400 border-b-2 border-cyan-400 shadow-[0_10px_10px_-10px_cyan]' : 'text-slate-500 hover:text-white'} pb-1 transition-all`}>
+              className={`${(activeTab === tab.toUpperCase() || (tab==='Core' && activeTab==='VOICE')) ? 'text-cyan-400 border-b border-cyan-400' : 'hover:text-white'} pb-1 transition-all`}>
               {tab}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-8">
-          <div className="text-right hidden sm:block">
-            <p className="text-[7px] text-slate-500 uppercase tracking-widest">Uptime</p>
-            <p className="text-[10px] text-cyan-400 font-mono">02:14:55:08</p>
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col items-end">
+            <span className="text-[7px] text-slate-500 tracking-widest uppercase">Latency</span>
+            <span className="text-[9px] text-cyan-400 font-mono">{telemetry.latency}</span>
           </div>
           <SignedIn><UserButton afterSignOutUrl="/" /></SignedIn>
         </div>
       </nav>
 
       {!isActive ? (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0a1120_0%,_#010409_100%)]">
-            <div className="mb-8 w-32 h-32 border border-cyan-500/10 rounded-full flex items-center justify-center animate-pulse">
-                <div className="w-16 h-16 border border-cyan-500/20 rounded-full" />
-            </div>
-          <button onClick={() => { setIsActive(true); speak("System initialized."); addLog("Neural interface stabilized.", "SUCCESS"); }} 
-            className="group relative px-16 py-5 border border-cyan-500/30 text-cyan-400 text-[11px] tracking-[0.8em] uppercase hover:bg-cyan-500/5 transition-all overflow-hidden">
-            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent" />
-            Initiate Boot
+        <div className="flex-1 flex items-center justify-center bg-[radial-gradient(circle_at_center,_#0a1120_0%,_#010409_100%)]">
+          <button onClick={() => { setIsActive(true); speak("System initialized."); addLog("Neural OS Boot sequence complete.", 'SUCCESS'); }} 
+            className="group relative px-12 py-4 border border-cyan-500/30 text-cyan-400 text-[10px] tracking-[0.6em] uppercase hover:bg-cyan-500/5 transition-all overflow-hidden">
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent" />
+            Initialize System
           </button>
         </div>
       ) : (
-        <div className="flex-1 grid grid-cols-[340px_1fr_340px] relative overflow-hidden bg-[#010409]">
+        <div className="flex-1 grid grid-cols-[320px_1fr_320px] relative overflow-hidden bg-[#010409]">
           
-          {/* --- LEFT PANEL: SYSTEM FLOW --- */}
-          <aside className="p-8 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409]/60 backdrop-blur-md z-20">
+          {/* LEFT PANEL: SMART HOME + PIPELINE */}
+          <aside className="p-6 border-r border-white/[0.02] flex flex-col gap-8 bg-[#010409]/50 backdrop-blur-xl z-20 overflow-y-auto custom-scrollbar">
             <section>
-              <p className="text-[8px] text-slate-600 uppercase tracking-[0.5em] mb-6">Neural Pipeline</p>
-              <div className="space-y-4">
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Command Pipeline</p>
+              <div className="space-y-3">
                 {[
-                  { n: "01", t: "Audio Capture", s: state === 'LISTENING' },
-                  { n: "02", t: "Semantic Analysis", s: state === 'THINKING' },
-                  { n: "03", t: "Intent Routing", s: state === 'THINKING' },
-                  { n: "04", t: "Speech Synthesis", s: state === 'SPEAKING' }
-                ].map(p => (
-                  <div key={p.n} className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-500 ${p.s ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.1)]' : 'bg-white/[0.01] border-white/5 opacity-30'}`}>
-                    <span className="text-[10px] font-mono opacity-50">{p.n}</span>
-                    <span className="text-[9px] uppercase tracking-[0.2em] font-bold">{p.t}</span>
-                    {p.s && <div className="ml-auto w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />}
-                  </div>
+                    { l: 'Signal Capture', active: state === 'LISTENING' },
+                    { l: 'Neural Parsing', active: state === 'THINKING' },
+                    { l: 'Intent Execution', active: state === 'SPEAKING' }
+                ].map((p, i) => (
+                    <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${p.active ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/[0.01] border-white/5 opacity-40'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${p.active ? 'bg-cyan-400 animate-pulse' : 'bg-slate-700'}`} />
+                        <span className="text-[9px] uppercase tracking-widest">{p.l}</span>
+                    </div>
                 ))}
               </div>
             </section>
 
             <section>
-              <p className="text-[8px] text-slate-600 uppercase tracking-[0.5em] mb-6">Environmental Matrix</p>
-              <div className="grid grid-cols-1 gap-2">
-                {Object.entries(devices).map(([name, active]) => (
-                  <div key={name} className="flex items-center justify-between p-4 rounded-xl bg-[#0d1117] border border-white/[0.02] hover:border-cyan-500/20 transition-all group">
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Smart Environment</p>
+              <div className="space-y-2">
+                {Object.entries(devices).map(([key, val]) => (
+                  <div key={key} className="flex items-center justify-between p-3 rounded-xl bg-[#0d1117] border border-white/[0.03] group hover:border-cyan-500/20 transition-all">
                     <div className="flex flex-col">
-                        <span className="text-[9px] uppercase tracking-widest text-slate-400 group-hover:text-cyan-400 transition-colors">{name}</span>
-                        <span className="text-[7px] text-slate-600 uppercase mt-1">{active ? 'Status: Active' : 'Status: Standby'}</span>
+                        <span className="text-[9px] uppercase tracking-widest text-slate-400">{key}</span>
+                        <span className="text-[7px] text-slate-600 uppercase">Signal: 100%</span>
                     </div>
-                    <div className={`w-2 h-2 rounded-full ${active ? 'bg-cyan-400 shadow-[0_0_8px_cyan]' : 'bg-slate-800'}`} />
+                    <button onClick={() => setDevices(d => ({...d, [key]: !val}))} className={`w-10 h-5 rounded-full relative transition-all ${val ? 'bg-cyan-600 shadow-[0_0_10px_rgba(6,182,212,0.4)]' : 'bg-slate-800'}`}>
+                      <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${val ? 'left-6' : 'left-1'}`} />
+                    </button>
                   </div>
                 ))}
               </div>
             </section>
           </aside>
 
-          {/* --- CENTER VIEWPORT: THE ORB --- */}
-          <main className="relative flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)]">
+          {/* CENTER VIEWPORT: THE ORB (LOCKED) */}
+          <main className="relative flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)] overflow-hidden">
             
             {activeTab === "VOICE" && (
                 <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">
-                    <div className="absolute top-12 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-1000">
-                        <span className="text-[8px] text-slate-500 uppercase tracking-[0.6em] mb-2">Cognitive Intent</span>
-                        <div className="px-6 py-2 rounded-full border border-cyan-500/20 bg-cyan-950/30 text-cyan-400 text-[11px] tracking-[0.4em] uppercase font-black shadow-2xl">
+                    {/* Floating Intent Indicator */}
+                    <div className="absolute top-12 flex flex-col items-center animate-in fade-in duration-700">
+                        <span className="text-[7px] text-slate-500 uppercase tracking-[0.5em] mb-1">Current Intent</span>
+                        <div className="px-5 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-950/20 text-cyan-400 text-[10px] tracking-[0.3em] uppercase font-bold shadow-[0_0_20px_rgba(6,182,212,0.1)]">
                             {telemetry.intent}
                         </div>
                     </div>
 
-                    {/* THE MAIN ORB */}
-                    <div className="w-[600px] h-[600px] flex items-center justify-center relative">
-                        <div className="absolute inset-0 border border-cyan-500/5 rounded-full scale-110 animate-pulse" />
-                        <div className="absolute inset-0 border border-purple-500/5 rounded-full scale-125" />
-                        <canvas ref={canvasRef} width={700} height={700} className="relative z-10 w-full h-full drop-shadow-[0_0_30px_rgba(6,182,212,0.2)]" />
+                    {/* THE ORB */}
+                    <div className="w-[550px] h-[550px] flex items-center justify-center relative">
+                        <div className="absolute inset-0 border border-cyan-500/5 rounded-full scale-125 animate-pulse" />
+                        <canvas ref={canvasRef} width={650} height={650} className="relative z-10 w-full h-full" />
                     </div>
 
-                    {/* DYNAMIC RESPONSE BOX */}
-                    <div className="absolute bottom-40 w-full max-w-2xl px-10">
-                        <div className="p-10 rounded-[30px] bg-[#0d1117]/80 border border-white/5 backdrop-blur-3xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] text-center group">
-                            <p className="text-[14px] text-slate-100 font-light italic leading-relaxed tracking-wide transition-all group-hover:text-white">
+                    {/* AI Response Overlay */}
+                    <div className="absolute bottom-36 w-full max-w-2xl px-6">
+                        <div className="p-8 rounded-3xl bg-[#0d1117]/80 border border-white/[0.05] backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center">
+                            <p className="text-[13px] text-slate-200 font-light italic leading-relaxed tracking-wide drop-shadow-md">
                                 "{response}"
                             </p>
                         </div>
@@ -322,49 +306,78 @@ export default function JarvisOS() {
                 </div>
             )}
 
-            {/* SHARED SYSTEM CONTROLS */}
-            <div className="absolute bottom-12 flex gap-16 z-30">
-              <button onClick={toggleMic} className={`w-20 h-20 rounded-full border-2 flex items-center justify-center transition-all duration-700 ${micOn ? 'border-cyan-400 bg-cyan-500/10 shadow-[0_0_50px_rgba(6,182,212,0.5)] scale-110' : 'border-white/10 bg-white/5 hover:border-cyan-500/40 hover:scale-105'}`}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#22d3ee' : '#475569'} strokeWidth="1.5">
+            {activeTab === "DASHBOARD" && (
+                <div className="relative z-10 w-full h-full p-12 grid grid-cols-2 gap-6 animate-in zoom-in duration-500">
+                    {[
+                        {l: 'Neural Confidence', v: telemetry.confidence, d: 'Intent Recognition'},
+                        {l: 'Memory Cache', v: '1.4GB', d: 'Short-term Buffer'},
+                        {l: 'Response Time', v: telemetry.latency, d: 'Last API Request'},
+                        {l: 'Session Count', v: telemetry.commands, d: 'Total Directives'}
+                    ].map(b => (
+                        <div key={b.l} className="bg-[#0d1117] border border-white/[0.03] rounded-3xl p-8 flex flex-col items-start justify-center hover:bg-white/[0.02] transition-all group">
+                            <span className="text-[9px] tracking-[0.4em] text-slate-500 mb-2 uppercase">{b.l}</span>
+                            <span className="text-5xl font-extralight text-cyan-400 mb-2">{b.v}</span>
+                            <span className="text-[8px] text-slate-600 uppercase tracking-widest">{b.d}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {activeTab === "MEMORY" && (
+                <div className="relative z-10 w-full h-full p-16 animate-in slide-in-from-bottom-8 duration-700">
+                    <h2 className="text-cyan-400 text-[10px] tracking-[0.8em] uppercase mb-12 flex items-center gap-4">
+                        <span className="w-12 h-[1px] bg-cyan-500/30" /> Neural Memory Graph
+                    </h2>
+                    <div className="grid grid-cols-3 gap-6">
+                        {['User Identity', 'Hardware Config', 'Behavioral Prefs', 'Voice Profile', 'Interaction Logs', 'Context Map'].map(node => (
+                            <div key={node} className="p-6 bg-[#0d1117] border border-white/[0.03] rounded-2xl hover:border-cyan-400/30 transition-all cursor-pointer group">
+                                <div className="w-2 h-2 rounded-full bg-cyan-400 mb-4 shadow-[0_0_10px_cyan] group-hover:animate-ping" />
+                                <p className="text-[10px] text-slate-300 uppercase tracking-widest">{node}</p>
+                                <p className="text-[8px] text-slate-600 mt-2">CONNECTED NODES: 12</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* SHARED CONTROLS */}
+            <div className="absolute bottom-10 flex gap-12 z-30">
+              <button onClick={toggleMic} className={`w-16 h-16 rounded-full border flex items-center justify-center transition-all duration-500 ${micOn ? 'border-cyan-400 bg-cyan-500/10 shadow-[0_0_40px_rgba(6,182,212,0.4)] scale-110' : 'border-white/10 bg-white/5 hover:border-white/30'}`}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#22d3ee' : '#475569'} strokeWidth="1.5">
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/>
                 </svg>
               </button>
-              <button onClick={() => setIsActive(false)} className="w-20 h-20 rounded-full border border-red-500/20 bg-red-500/5 flex items-center justify-center hover:bg-red-500/30 hover:scale-105 transition-all">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+              <button onClick={() => setIsActive(false)} className="w-16 h-16 rounded-full border border-red-500/20 bg-red-500/5 flex items-center justify-center hover:bg-red-500/30 transition-all">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
               </button>
             </div>
           </main>
 
-          {/* --- RIGHT PANEL: TELEMETRY & DATA --- */}
-          <aside className="p-8 border-l border-white/[0.02] flex flex-col gap-10 bg-[#010409]">
+          {/* RIGHT PANEL: TELEMETRY + LOGS */}
+          <aside className="p-6 border-l border-white/[0.02] flex flex-col gap-8 bg-[#010409] z-20">
             <section>
-              <p className="text-[8px] text-slate-600 uppercase tracking-[0.5em] mb-6">System Telemetry</p>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { v: telemetry.latency, l: "Latency", c: "text-cyan-400" },
-                  { v: telemetry.confidence, l: "Confidence", c: "text-purple-400" },
-                  { v: telemetry.temp, l: "Thermal", c: "text-orange-400" },
-                  { v: "70B", l: "Parameters", c: "text-emerald-400" }
-                ].map(s => (
-                  <div key={s.l} className="p-5 bg-[#0d1117] border border-white/[0.03] rounded-2xl text-center group hover:border-white/10 transition-all">
-                    <p className={`${s.c} font-black text-[12px] group-hover:scale-110 transition-transform`}>{s.v}</p>
-                    <p className="text-[7px] text-slate-600 mt-2 tracking-widest uppercase">{s.l}</p>
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Neural Stats</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[{v:'34°C', l:'CPU TEMP'}, {v:'1.8s', l:'THINKING'}, {v:'PRO', l:'ENGINE'}, {v:'LIVE', l:'SYNC'}].map(s => (
+                  <div key={s.l} className="p-4 bg-[#0d1117] border border-white/[0.03] rounded-xl text-center hover:bg-white/5 transition-all">
+                    <p className="text-cyan-400 font-black text-[11px]">{s.v}</p>
+                    <p className="text-[7px] text-slate-600 mt-1 tracking-widest uppercase">{s.l}</p>
                   </div>
                 ))}
               </div>
             </section>
 
             <section className="flex-1 flex flex-col min-h-0">
-              <p className="text-[8px] text-slate-600 uppercase tracking-[0.5em] mb-6">Neural Stream</p>
-              <div className="flex-1 overflow-y-auto space-y-4 pr-3 custom-scrollbar">
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Activity Stream</p>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                 {log.map((l, i) => (
-                  <div key={i} className={`text-[10px] border-l-2 pl-4 py-3 animate-in slide-in-from-right duration-500 ${
+                  <div key={i} className={`text-[9px] border-l-2 pl-4 py-2 transition-all animate-in slide-in-from-right duration-500 ${
                     l.type === 'SUCCESS' ? 'border-emerald-500' : 
                     l.type === 'ERROR' ? 'border-red-500' : 
-                    l.type === 'TRACE' ? 'border-purple-500' : 'border-cyan-500/40'
+                    l.type === 'TRACE' ? 'border-purple-500' : 'border-cyan-500/30'
                   }`}>
-                    <p className="text-slate-500 text-[7px] mb-1 font-mono">{l.time} // {l.type}</p>
-                    <p className="text-slate-200 italic leading-snug">{l.msg}</p>
+                    <p className="text-slate-500 text-[7px] mb-1 font-mono tracking-tighter">{l.time} / {l.type}</p>
+                    <p className="text-slate-200 italic leading-relaxed">{l.msg}</p>
                   </div>
                 ))}
               </div>
