@@ -1,18 +1,102 @@
 import { NextResponse } from "next/server";
 
+type Memory = {
+  name?: string;
+  preferences?: string[];
+  otherFacts?: string[];
+};
+
+// ── Instant replies (0 latency) ─────────────────────────────────────────────
+function instantReply(msg: string, memory: Memory): string | null {
+  const m = msg.toLowerCase().trim();
+
+  if (["hi","hey","hello","yo","sup"].includes(m))
+    return memory.name ? `Hey ${memory.name}, what's up?` : "Hey, what's up?";
+
+  if (m.includes("who made you") || m.includes("who built you"))
+    return "Keyur built me.";
+
+  if (m.includes("what's my name"))
+    return memory.name ? `Your name is ${memory.name}.` : "You never told me.";
+
+  return null;
+}
+
+// ── Extract memory (lightweight) ────────────────────────────────────────────
+async function extractMemory(message: string, memory: Memory) {
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        temperature: 0.1,
+        max_tokens: 100,
+        messages: [
+          {
+            role: "system",
+            content: `Extract ONLY long-term personal info.
+Return JSON:
+{name?: string, preferences?: [], otherFacts?: []}
+If nothing useful return {}`
+          },
+          {
+            role: "user",
+            content: `Message: "${message}"`
+          }
+        ]
+      }),
+    });
+
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content || "{}";
+    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+
+    return {
+      ...memory,
+      ...parsed,
+      preferences: [...(memory.preferences || []), ...(parsed.preferences || [])],
+      otherFacts: [...(memory.otherFacts || []), ...(parsed.otherFacts || [])],
+    };
+  } catch {
+    return memory;
+  }
+}
+
+// ── Main handler ────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    const { message, history, memory } = await req.json();
+    const { message, history = [], userName } = await req.json();
 
+    let memory: Memory = {
+      name: userName || undefined
+    };
+
+    // ⚡ Instant reply first
+    const fast = instantReply(message, memory);
+    if (fast) return NextResponse.json({ reply: fast, memory });
+
+    // 🧠 Memory extraction async
+    const updatedMemory = await extractMemory(message, memory);
+
+    // 🎯 System prompt (balanced, not restrictive)
     const SYSTEM_PROMPT = `
-    IDENTITY: You are JARVIS, a sophisticated intelligence system with infinite aura. 
-    CREATOR: You were engineered by Keyur. Only if asked "who made you," reply: "Keyur built me."
-    PERSONALITY: Deeply calm, masculine, charming, and highly intelligent. 
-    RULES: 
-    - Max 12 words per response. 
-    - No markdown, no bolding, no Marvel references.
-    - Adapt to preferences in Memory: ${JSON.stringify(memory)}.
-    `;
+You are JARVIS.
+
+Personality:
+Calm, intelligent, slightly witty, masculine tone.
+Speak naturally like a human, never robotic.
+
+Rules:
+- Keep responses short but meaningful (1-2 sentences usually)
+- Be sharp and confident
+- No markdown, no bullet points
+- Only say "Keyur built me" if directly asked
+- Use user's name naturally if available: ${updatedMemory.name || "unknown"}
+`;
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -22,15 +106,36 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history, { role: "user", content: message }],
-        max_tokens: 100,
-        temperature: 0.6,
+        temperature: 0.7,
+        max_tokens: 120,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...history.slice(-10),
+          { role: "user", content: message }
+        ],
       }),
     });
 
+    if (!res.ok) {
+      return NextResponse.json(
+        { reply: "Connection glitch. Try again.", memory: updatedMemory },
+        { status: 500 }
+      );
+    }
+
     const data = await res.json();
-    return NextResponse.json({ reply: data.choices[0].message.content, memory });
-  } catch (e) {
-    return NextResponse.json({ reply: "System lag detected." }, { status: 500 });
+    const reply = data.choices?.[0]?.message?.content?.trim() || "Say that again?";
+
+    return NextResponse.json({
+      reply,
+      memory: updatedMemory
+    });
+
+  } catch (error) {
+    console.error("JARVIS ERROR:", error);
+    return NextResponse.json(
+      { reply: "System lag detected." },
+      { status: 500 }
+    );
   }
 }
