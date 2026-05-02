@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 
+// --- TYPES ---
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS" | "LOGS";
 
@@ -15,7 +16,8 @@ export default function JarvisOS() {
   const [log, setLog] = useState<{time: string, msg: string}[]>([]);
   const [mounted, setMounted] = useState(false);
   
-  const [devices, setDevices] = useState({
+  // --- SMART HOME DEVICES ---
+  const [devices, setDevices] = useState<Record<string, boolean>>({
     "Living Rm": true,
     "Bedroom Fan": true,
     "Front Door": false,
@@ -41,7 +43,35 @@ export default function JarvisOS() {
     setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 15));
   };
 
-  // --- BRAIN: VOICE CORE ---
+  // --- BRAIN: SMART DEVICE ROUTER ---
+  // This looks at what JARVIS said and updates your UI devices automatically
+  const processDeviceCommand = (text: string) => {
+    const lowerText = text.toLowerCase();
+    const newDevices = { ...devices };
+    let changed = false;
+
+    // Logic for Lights
+    if (lowerText.includes("light") || lowerText.includes("living rm")) {
+      if (lowerText.includes("on")) { newDevices["Living Rm"] = true; changed = true; }
+      if (lowerText.includes("off")) { newDevices["Living Rm"] = false; changed = true; }
+    }
+    // Logic for Fan
+    if (lowerText.includes("fan")) {
+      if (lowerText.includes("on")) { newDevices["Bedroom Fan"] = true; changed = true; }
+      if (lowerText.includes("off")) { newDevices["Bedroom Fan"] = false; changed = true; }
+    }
+    // Logic for Door
+    if (lowerText.includes("door")) {
+      if (lowerText.includes("open") || lowerText.includes("unlock")) { newDevices["Front Door"] = true; changed = true; }
+      if (lowerText.includes("close") || lowerText.includes("lock")) { newDevices["Front Door"] = false; changed = true; }
+    }
+
+    if (changed) {
+      setDevices(newDevices);
+      addLog("System: Executed hardware override.");
+    }
+  };
+
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -56,20 +86,18 @@ export default function JarvisOS() {
     window.speechSynthesis.speak(u);
   }, []);
 
-  // --- BRAIN: API UPLINK ---
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
     setState("THINKING");
-    addLog(`UPLINK: ${input.toUpperCase()}`);
-
+    
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           message: input, 
-          history: historyRef.current, 
-          memory: { user: user?.firstName || "Guest", preferences: "Cold, Night Owl" } 
+          history: historyRef.current,
+          userName: user?.firstName || "Sir"
         }),
       });
 
@@ -78,21 +106,71 @@ export default function JarvisOS() {
       if (res.ok) {
         setResponse(data.reply);
         addLog(`JARVIS: ${data.reply}`);
+        
+        // TRIGGER HARDWARE CONTROL BASED ON REPLY
+        processDeviceCommand(data.reply);
+
         historyRef.current = [
           ...historyRef.current, 
           { role: "user", content: input }, 
           { role: "assistant", content: data.reply }
         ].slice(-10);
         speak(data.reply);
-      } else {
-        throw new Error();
       }
     } catch (error) {
       setState("IDLE");
-      setResponse("Neural link severed. Groq API unreachable.");
-      addLog("SYSTEM ERROR: API TIMEOUT");
+      setResponse("Neural link severed.");
     }
-  }, [user, speak]);
+  }, [user, speak, devices]);
+
+  // --- ORB ANIMATION ENGINE ---
+  useEffect(() => {
+    if (!canvasRef.current || activeTab !== "VOICE") return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let frame = 0;
+    const particles = Array.from({ length: 850 }, () => ({
+      theta: Math.random() * Math.PI * 2,
+      phi: Math.acos((Math.random() * 2) - 1),
+      colorType: Math.random()
+    }));
+
+    function animate() {
+      if (!ctx || !canvas || activeTab !== "VOICE") return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      frame += (stateRef.current === "THINKING" ? 0.08 : 0.015);
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const baseRadius = stateRef.current === "LISTENING" ? 140 : 125;
+
+      particles.forEach((p, i) => {
+        const time = frame + i * 0.005;
+        const wobble = 1 + Math.sin(time * 2.5 + p.phi * 4) * 0.15;
+        const r = baseRadius * wobble;
+        const x = centerX + r * Math.sin(p.phi) * Math.cos(p.theta + frame);
+        const y = centerY + r * Math.cos(p.phi);
+        const depth = (Math.sin(p.theta + frame) + 1) / 2;
+
+        let rgb = "249, 115, 22"; // Orange
+        if (p.colorType > 0.4) rgb = "168, 85, 247"; // Purple
+        if (p.colorType > 0.8) rgb = "34, 211, 238"; // Cyan
+
+        ctx.beginPath();
+        ctx.arc(x, y, 1.2 + depth * 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
+        if (i % 20 === 0) {
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = `rgb(${rgb})`;
+        } else { ctx.shadowBlur = 0; }
+        ctx.fill();
+      });
+      requestAnimationFrame(animate);
+    }
+    const animId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animId);
+  }, [activeTab, mounted]);
 
   const toggleMic = () => {
     if (micOnRef.current) {
@@ -101,12 +179,14 @@ export default function JarvisOS() {
       try { recognitionRef.current?.stop(); } catch {}
     } else {
       const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      if (!recognitionRef.current && SR) {
+      if (!recognitionRef.current) {
         recognitionRef.current = new SR();
         recognitionRef.current.continuous = true;
         recognitionRef.current.onresult = (e: any) => {
           const res = e.results[e.results.length - 1][0].transcript;
-          recognitionRef.current?.stop(); // Stop while thinking/speaking
+          addLog(`INPUT: ${res}`);
+          setResponse(`Analyzing: "${res}"`);
+          recognitionRef.current?.stop();
           askJarvis(res);
         };
       }
@@ -116,48 +196,12 @@ export default function JarvisOS() {
     }
   };
 
-  // --- ORB ENGINE ---
-  useEffect(() => {
-    if (!canvasRef.current || activeTab !== "VOICE") return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let frame = 0;
-    const particles = Array.from({ length: 850 }, () => ({
-      theta: Math.random() * Math.PI * 2,
-      phi: Math.acos((Math.random() * 2) - 1),
-      colorType: Math.random()
-    }));
-    function animate() {
-      if (!ctx || !canvas || activeTab !== "VOICE") return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      frame += (stateRef.current === "THINKING" ? 0.08 : 0.015);
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const baseRadius = stateRef.current === "LISTENING" ? 140 : 125;
-      particles.forEach((p, i) => {
-        const time = frame + i * 0.005;
-        const wobble = 1 + Math.sin(time * 2.5 + p.phi * 4) * 0.15;
-        const r = baseRadius * wobble;
-        const x = centerX + r * Math.sin(p.phi) * Math.cos(p.theta + frame);
-        const y = centerY + r * Math.cos(p.phi);
-        const depth = (Math.sin(p.theta + frame) + 1) / 2;
-        let rgb = "249, 115, 22"; if (p.colorType > 0.4) rgb = "168, 85, 247"; if (p.colorType > 0.8) rgb = "34, 211, 238";
-        ctx.beginPath(); ctx.arc(x, y, 1.2 + depth * 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
-        if (i % 20 === 0) { ctx.shadowBlur = 12; ctx.shadowColor = `rgb(${rgb})`; } else { ctx.shadowBlur = 0; }
-        ctx.fill();
-      });
-      requestAnimationFrame(animate);
-    }
-    const animId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animId);
-  }, [activeTab, mounted]);
-
   if (!mounted || !isLoaded) return null;
 
   return (
     <main className="min-h-screen bg-[#010409] text-[#7d8590] font-sans flex flex-col overflow-hidden">
+      
+      {/* 1. TOP NAV BAR */}
       <nav className="h-14 px-8 flex items-center justify-between bg-[#010409] border-b border-white/[0.03]">
         <div className="flex items-center gap-3">
           <div className="w-5 h-5 border border-cyan-500/40 rounded flex items-center justify-center">
@@ -165,6 +209,7 @@ export default function JarvisOS() {
           </div>
           <span className="text-[11px] font-bold tracking-[0.3em] text-white uppercase italic">Jarvis<span className="text-cyan-500 font-light">OS</span></span>
         </div>
+
         <div className="flex gap-10 text-[9px] tracking-[0.4em] uppercase font-black">
           {['Core', 'Home', 'Memory', 'Logs'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab === 'Core' ? 'VOICE' : tab.toUpperCase() as ActiveTab)}
@@ -173,9 +218,14 @@ export default function JarvisOS() {
             </button>
           ))}
         </div>
+
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/5 border border-cyan-500/10">
+            <div className="w-1 h-1 bg-cyan-400 rounded-full animate-pulse" />
+            <span className="text-[8px] text-cyan-400 font-bold uppercase tracking-tighter">Neural Active</span>
+          </div>
           <SignedIn><UserButton afterSignOutUrl="/" /></SignedIn>
-          <SignedOut><SignInButton mode="modal"><button className="text-[9px] bg-cyan-500/10 border border-cyan-500/30 px-3 py-1 rounded text-cyan-400 uppercase">Login</button></SignInButton></SignedOut>
+          <SignedOut><SignInButton mode="modal"><button className="text-[9px] bg-cyan-500/10 border border-cyan-500/30 px-3 py-1 rounded text-cyan-400 hover:bg-cyan-500/20">LOG IN</button></SignInButton></SignedOut>
         </div>
       </nav>
 
@@ -185,11 +235,13 @@ export default function JarvisOS() {
         </div>
       ) : (
         <div className="flex-1 grid grid-cols-[280px_1fr_280px] bg-[#010409]">
+          
+          {/* LEFT PANEL: SMART HOME */}
           <aside className="p-6 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409]">
             <section>
               <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Navigation</p>
               <div className="space-y-2">
-                {[{ id: "VOICE", label: "Voice Core", icon: "◎" }, { id: "DASHBOARD", label: "Dashboard", icon: "⊞" }, { id: "MEMORY", label: "Memory", icon: "≡" }].map((item) => (
+                {[{ id: "VOICE", label: "Voice Core", icon: "◎" }, { id: "DASHBOARD", label: "Dashboard", icon: "⊞" }, { id: "MEMORY", label: "Memory", icon: "≡" }, { id: "SETTINGS", label: "Settings", icon: "⚙" }].map((item) => (
                   <button key={item.id} onClick={() => setActiveTab(item.id as ActiveTab)}
                     className={`w-full flex items-center gap-3 p-3 rounded-md text-[9px] tracking-widest transition-all ${activeTab === item.id ? 'bg-[#0d1117] border border-cyan-500/20 text-cyan-400 shadow-lg' : 'hover:bg-white/[0.02] text-slate-500'}`}>
                     <span className="text-xs">{item.icon}</span> {item.label.toUpperCase()}
@@ -197,13 +249,14 @@ export default function JarvisOS() {
                 ))}
               </div>
             </section>
+
             <section>
               <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Smart Home</p>
               <div className="space-y-2">
                 {Object.entries(devices).map(([key, val]) => (
                   <div key={key} className="flex items-center justify-between p-3 rounded-md bg-[#0d1117] border border-white/[0.03]">
                     <span className="text-[9px] uppercase tracking-widest text-slate-400">{key}</span>
-                    <button onClick={() => { setDevices(d => ({...d, [key]: !val})); addLog(`Smart Home: ${key} ${!val ? 'Enabled' : 'Disabled'}`); }} className={`w-8 h-4 rounded-full relative transition-all ${val ? 'bg-cyan-600' : 'bg-slate-800'}`}>
+                    <button onClick={() => setDevices(d => ({...d, [key]: !val}))} className={`w-8 h-4 rounded-full relative transition-all ${val ? 'bg-cyan-600' : 'bg-slate-800'}`}>
                       <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${val ? 'left-4.5' : 'left-0.5'}`} />
                     </button>
                   </div>
@@ -212,6 +265,7 @@ export default function JarvisOS() {
             </section>
           </aside>
 
+          {/* CENTER PANEL */}
           <main className="relative flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_75%)]">
             {activeTab === "VOICE" && (
               <>
@@ -230,17 +284,74 @@ export default function JarvisOS() {
                 </div>
               </>
             )}
+
+            {activeTab === "DASHBOARD" && (
+              <div className="w-full h-full p-12 grid grid-cols-2 grid-rows-2 gap-6 animate-in fade-in zoom-in duration-500">
+                {[{l: 'NEURAL CAPACITY', v: '78%', c: 'text-cyan-400'}, {l: 'MEMORY INDEX', v: '1.2 TB', c: 'text-purple-400'}, {l: 'API LATENCY', v: '24ms', c: 'text-emerald-400'}, {l: 'ACTIVE NODES', v: '14,204', c: 'text-orange-400'}].map(box => (
+                  <div key={box.l} className="bg-[#0d1117] border border-white/[0.03] rounded-2xl flex flex-col items-center justify-center p-6">
+                    <span className="text-[8px] tracking-[0.4em] text-slate-500 mb-4 uppercase">{box.l}</span>
+                    <span className={`text-4xl font-light ${box.c}`}>{box.v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "MEMORY" && (
+              <div className="w-full h-full p-16 animate-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-white text-[10px] tracking-[0.5em] uppercase mb-10 border-b border-white/5 pb-4">Knowledge Graph</h2>
+                <div className="grid grid-cols-1 gap-4 overflow-y-auto max-h-[60vh] pr-4 custom-scrollbar">
+                  {["System Preferences", "User Profile", "Recent Locations", "Scheduled Events"].map(item => (
+                    <div key={item} className="p-5 bg-[#0d1117] rounded-lg border border-white/[0.02] flex justify-between items-center hover:bg-cyan-500/5 cursor-pointer">
+                      <span className="text-[10px] text-slate-400 tracking-widest uppercase">{item}</span>
+                      <span className="text-cyan-400 text-[10px]">SYNCED</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="absolute bottom-10 flex gap-12">
-              <button onClick={toggleMic} className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-cyan-400 bg-cyan-500/10' : 'border-white/10 bg-white/5'}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#22d3ee' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
-              </button>
-              <button onClick={() => setIsActive(false)} className="w-14 h-14 rounded-full border border-red-500/20 bg-red-500/5 flex items-center justify-center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg></button>
+              <div className="flex flex-col items-center gap-2">
+                <button onClick={toggleMic} className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-cyan-400 bg-cyan-500/10 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'border-white/10 bg-white/5'}`}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#22d3ee' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
+                </button>
+                <span className="text-[8px] uppercase tracking-[0.3em] font-black text-cyan-400">{micOn ? 'Active' : 'Off'}</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <button onClick={() => setIsActive(false)} className="w-14 h-14 rounded-full border border-red-500/20 bg-red-500/5 flex items-center justify-center hover:bg-red-500/10 transition-all">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+                </button>
+                <span className="text-[8px] uppercase tracking-[0.3em] font-black text-red-500">Shutdown</span>
+              </div>
             </div>
           </main>
 
+          {/* RIGHT PANEL */}
           <aside className="p-6 border-l border-white/[0.02] flex flex-col gap-10 bg-[#010409]">
-             <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Live Activity Stream</p>
-             <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+            <section>
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">System Stats</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[{v:'24°', l:'TEMP'}, {v:'5', l:'ACTIVE'}, {v:'98%', l:'UPTIME'}, {v:'70B', l:'MODEL'}].map(s => (
+                  <div key={s.l} className="p-3 bg-[#0d1117] border border-white/[0.03] rounded-md">
+                    <p className="text-cyan-400 font-bold text-[10px]">{s.v}</p>
+                    <p className="text-[7px] text-slate-600 mt-1 tracking-widest uppercase">{s.l}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Memory Index</p>
+              <div className="flex flex-wrap gap-1.5">
+                {['Keyur', 'likes coding', 'prefers cold', 'night owl'].map(tag => (
+                  <span key={tag} className="px-2 py-1 bg-cyan-500/5 border border-cyan-500/10 rounded text-[8px] text-cyan-400/70 tracking-tighter hover:text-cyan-400 cursor-default">• {tag}</span>
+                ))}
+              </div>
+            </section>
+
+            <section className="flex-1 flex flex-col min-h-0">
+              <p className="text-[8px] text-slate-600 uppercase tracking-[0.4em] mb-4">Live Activity Stream</p>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                 {log.map((l, i) => (
                   <div key={i} className="text-[9px] border-l border-cyan-500/30 pl-3 py-1">
                     <p className="text-slate-500 text-[7px] mb-1">{l.time}</p>
@@ -248,9 +359,11 @@ export default function JarvisOS() {
                   </div>
                 ))}
               </div>
+            </section>
           </aside>
         </div>
       )}
+
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
