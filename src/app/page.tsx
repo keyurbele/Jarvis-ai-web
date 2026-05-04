@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
@@ -36,7 +36,16 @@ export default function JarvisOS() {
     setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
   };
 
-  // --- ENGINE: THE MAJESTIC ORB ---
+  // --- STABLE PARTICLE SYSTEM (Generated once, stays majestic) ---
+  const particles = useMemo(() => {
+    return Array.from({ length: 2200 }, () => ({
+      theta: Math.random() * Math.PI * 2,
+      phi: Math.acos((Math.random() * 2) - 1),
+      speedMult: 0.5 + Math.random() * 1.2,
+      size: 0.6 + Math.random() * 2.5
+    }));
+  }, []);
+
   useEffect(() => {
     if (!canvasRef.current || !isActive) return;
     const canvas = canvasRef.current;
@@ -44,22 +53,18 @@ export default function JarvisOS() {
     if (!ctx) return;
 
     let frame = 0;
-    const particles = Array.from({ length: 2200 }, () => ({
-      theta: Math.random() * Math.PI * 2,
-      phi: Math.acos((Math.random() * 2) - 1),
-      speedMult: 0.4 + Math.random() * 1.1,
-      size: 0.5 + Math.random() * 2.8
-    }));
 
     function animate() {
       if (!ctx || !canvas) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let rotSpeed = 0.007;
-      let turbulence = 0.2;
-      let baseRadius = activeTab === "DASHBOARD" ? 250 : 135; 
       
-      if (stateRef.current === "THINKING") { rotSpeed = 0.07; turbulence = 0.7; }
-      if (stateRef.current === "SPEAKING") { rotSpeed = 0.03; turbulence = 0.4; }
+      // Black background with slight opacity for motion trails
+      ctx.fillStyle = "rgba(1, 4, 9, 0.2)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // CONSTANT SPEED: No acceleration, just smooth motion
+      const rotSpeed = 0.008; 
+      const turbulence = 0.15; 
+      const baseRadius = activeTab === "DASHBOARD" ? 200 : 135; 
       
       frame += rotSpeed;
       const centerX = canvas.width / 2;
@@ -67,8 +72,10 @@ export default function JarvisOS() {
 
       particles.forEach((p, i) => {
         const pFrame = frame * p.speedMult;
-        const wobble = 1 + Math.sin(pFrame * 2 + p.phi * 4) * turbulence;
+        const wobble = 1 + Math.sin(pFrame * 1.5 + p.phi * 3) * turbulence;
         const r = baseRadius * wobble;
+        
+        // Calculate 3D sphere projection
         const x = centerX + r * Math.sin(p.phi) * Math.cos(p.theta + frame);
         const y = centerY + r * Math.cos(p.phi);
         const depth = (Math.sin(p.theta + frame) + 1) / 2;
@@ -78,16 +85,23 @@ export default function JarvisOS() {
         if (i % 15 === 0) rgb = "255, 255, 255";
 
         ctx.beginPath();
-        ctx.arc(x, y, (0.4 + depth * 3.5) * (p.size/2), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
-        if (i % 60 === 0) { ctx.shadowBlur = 20; ctx.shadowColor = `rgb(${rgb})`; }
+        ctx.arc(x, y, (0.5 + depth * 3.5) * (p.size / 2), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb}, ${0.15 + depth * 0.75})`;
+        
+        if (i % 80 === 0) {
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = `rgb(${rgb})`;
+        } else {
+          ctx.shadowBlur = 0;
+        }
+        
         ctx.fill();
       });
       requestAnimationFrame(animate);
     }
     const animId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animId);
-  }, [isActive, mounted, activeTab]);
+  }, [isActive, mounted, activeTab, particles]);
 
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
@@ -136,12 +150,10 @@ export default function JarvisOS() {
   return (
     <main className="fixed inset-0 bg-[#010409] text-[#7d8590] flex flex-col overflow-hidden font-sans">
       
-      {/* BACK BUTTON (DASHBOARD ONLY) */}
       <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-8 py-2 border border-pink-500/30 bg-black/60 backdrop-blur-xl rounded-full text-[9px] tracking-[0.5em] uppercase text-pink-500 transition-all duration-700 ${activeTab === 'DASHBOARD' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         Return to Core
       </button>
 
-      {/* NAV BAR */}
       <nav className={`h-16 px-10 flex items-center justify-between border-b border-white/[0.03] bg-[#010409] z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-4">
           <div className="w-6 h-6 border border-pink-500/40 rounded flex items-center justify-center">
@@ -167,7 +179,6 @@ export default function JarvisOS() {
       ) : (
         <div className="flex-1 relative flex overflow-hidden">
           
-          {/* LEFT: HOME CONTROLS */}
           <aside className={`w-[320px] p-8 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
             <div>
               <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Hardware Network</p>
@@ -184,21 +195,20 @@ export default function JarvisOS() {
             </div>
           </aside>
 
-          {/* CENTER: MAJESTIC ORB */}
-          <main className="flex-1 relative flex flex-col items-center justify-center">
+          <main className="flex-1 relative flex flex-col items-center justify-center pt-10">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)]" />
-            <div className={`relative transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'scale-150' : 'scale-100'}`}>
-                <canvas ref={canvasRef} width={1000} height={1000} className="relative z-10 w-[750px] h-[750px]" />
+            
+            {/* ORB Container - Adjusted scale to prevent clipping */}
+            <div className={`relative transition-all duration-1000 ease-in-out ${activeTab === 'DASHBOARD' ? 'scale-[1.2] -translate-y-10' : 'scale-100'}`}>
+                <canvas ref={canvasRef} width={800} height={800} className="relative z-10 w-[600px] h-[600px]" />
             </div>
             
-            {/* RESPONSE UI */}
             <div className={`absolute bottom-36 w-full max-w-2xl px-8 transition-all duration-700 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                 <div className="p-8 rounded-3xl bg-[#0d1117]/80 border border-white/[0.06] backdrop-blur-2xl shadow-2xl text-center">
                     <p className="text-[14px] text-slate-200 font-light italic leading-relaxed">{response}</p>
                 </div>
             </div>
 
-            {/* MIC CONTROL */}
             <div className={`absolute bottom-12 transition-all duration-700 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
               <button onClick={toggleMic} className={`w-20 h-20 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_40px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
@@ -206,15 +216,12 @@ export default function JarvisOS() {
             </div>
           </main>
 
-          {/* RIGHT: ACTIVITY & MEMORY */}
           <aside className={`w-[320px] p-8 border-l border-white/[0.02] flex flex-col gap-12 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
             <section>
               <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Neural Memory</p>
               <div className="flex flex-wrap gap-2">
                 {['User: Keyur', 'Access: Admin', 'UI: Majestic', 'Node: Primary'].map(tag => (
-                  <span key={tag} className="px-3 py-1.5 bg-pink-500/5 border border-pink-500/10 rounded-lg text-[9px] text-pink-400/80">
-                    {tag}
-                  </span>
+                  <span key={tag} className="px-3 py-1.5 bg-pink-500/5 border border-pink-500/10 rounded-lg text-[9px] text-pink-400/80">{tag}</span>
                 ))}
               </div>
             </section>
