@@ -59,8 +59,8 @@ export default function JarvisOS() {
       
       const rotSpeed = 0.008; 
       const turbulence = 0.15;
-      // CHANGED: Increased dashboard radius significantly
-      const baseRadius = activeTab === "DASHBOARD" ? 280 : 135; 
+      // Fixed: Adjusted radius to be large but fit within the 800px canvas clearing
+      const baseRadius = activeTab === "DASHBOARD" ? 240 : 135; 
       
       frame += rotSpeed;
       const centerX = canvas.width / 2;
@@ -187,16 +187,16 @@ export default function JarvisOS() {
             </div>
           </aside>
 
-          <main className="flex-1 relative flex flex-col items-center justify-start">
+          <main className="flex-1 relative flex flex-col items-center justify-center">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)]" />
             
-            {/* THE ORB - Adjusted positioning and scaling */}
-            <div className={`relative transition-all duration-1000 z-10 ${activeTab === 'DASHBOARD' ? 'scale-150 translate-y-24' : 'scale-100 -translate-y-10'}`}>
-                <canvas ref={canvasRef} width={800} height={800} className="relative w-[600px] h-[600px]" />
+            {/* THE ORB - Center-aligned and constrained */}
+            <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center ${activeTab === 'DASHBOARD' ? 'scale-125 translate-y-0' : 'scale-100 -translate-y-20'}`}>
+                <canvas ref={canvasRef} width={800} height={800} className="relative w-[600px] h-[600px] max-w-full max-h-full" />
             </div>
             
-            {/* RESPONSE UI - Adjusted bottom margin to prevent overlap */}
-            <div className={`absolute bottom-44 w-full max-w-2xl px-8 transition-all duration-700 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+            {/* RESPONSE UI */}
+            <div className={`absolute bottom-40 w-full max-w-2xl px-8 transition-all duration-700 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                 <div className="p-8 rounded-3xl bg-[#0d1117]/90 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
                     <p className="text-[14px] text-slate-200 font-light italic leading-relaxed">{response}</p>
                 </div>
