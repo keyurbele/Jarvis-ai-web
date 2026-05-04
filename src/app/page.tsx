@@ -36,13 +36,13 @@ export default function JarvisOS() {
     setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
   };
 
-  // --- STABLE PARTICLE SYSTEM (Generated once, stays majestic) ---
+  // --- ENGINE: PRE-CALCULATED FOR INSTANT START ---
   const particles = useMemo(() => {
     return Array.from({ length: 2200 }, () => ({
       theta: Math.random() * Math.PI * 2,
       phi: Math.acos((Math.random() * 2) - 1),
-      speedMult: 0.5 + Math.random() * 1.2,
-      size: 0.6 + Math.random() * 2.5
+      speedMult: 0.6 + Math.random() * 1.0,
+      size: 0.5 + Math.random() * 2.5
     }));
   }, []);
 
@@ -56,15 +56,12 @@ export default function JarvisOS() {
 
     function animate() {
       if (!ctx || !canvas) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Black background with slight opacity for motion trails
-      ctx.fillStyle = "rgba(1, 4, 9, 0.2)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // CONSTANT SPEED: No acceleration, just smooth motion
+      // LOCKED CONSTANT SPEED
       const rotSpeed = 0.008; 
-      const turbulence = 0.15; 
-      const baseRadius = activeTab === "DASHBOARD" ? 200 : 135; 
+      const turbulence = 0.15;
+      const baseRadius = activeTab === "DASHBOARD" ? 180 : 135; 
       
       frame += rotSpeed;
       const centerX = canvas.width / 2;
@@ -72,29 +69,28 @@ export default function JarvisOS() {
 
       particles.forEach((p, i) => {
         const pFrame = frame * p.speedMult;
-        const wobble = 1 + Math.sin(pFrame * 1.5 + p.phi * 3) * turbulence;
+        const wobble = 1 + Math.sin(pFrame * 2 + p.phi * 4) * turbulence;
         const r = baseRadius * wobble;
         
-        // Calculate 3D sphere projection
-        const x = centerX + r * Math.sin(p.phi) * Math.cos(p.theta + frame);
+        // Horizontal Spin
+        const currentTheta = p.theta + frame;
+        const x = centerX + r * Math.sin(p.phi) * Math.cos(currentTheta);
         const y = centerY + r * Math.cos(p.phi);
-        const depth = (Math.sin(p.theta + frame) + 1) / 2;
+        const depth = (Math.sin(currentTheta) + 1) / 2;
 
         let rgb = "255, 20, 147"; 
         if (i % 5 === 0) rgb = "168, 85, 247";
         if (i % 15 === 0) rgb = "255, 255, 255";
 
         ctx.beginPath();
-        ctx.arc(x, y, (0.5 + depth * 3.5) * (p.size / 2), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${rgb}, ${0.15 + depth * 0.75})`;
-        
-        if (i % 80 === 0) {
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = `rgb(${rgb})`;
+        ctx.arc(x, y, (0.4 + depth * 3.5) * (p.size/2), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
+        if (i % 60 === 0) { 
+          ctx.shadowBlur = 15; 
+          ctx.shadowColor = `rgb(${rgb})`; 
         } else {
           ctx.shadowBlur = 0;
         }
-        
         ctx.fill();
       });
       requestAnimationFrame(animate);
@@ -180,36 +176,35 @@ export default function JarvisOS() {
         <div className="flex-1 relative flex overflow-hidden">
           
           <aside className={`w-[320px] p-8 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
-            <div>
-              <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Hardware Network</p>
-              <div className="space-y-3">
-                {Object.entries(devices).map(([key, val]) => (
-                  <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-[#0d1117] border border-white/[0.04]">
-                    <span className="text-[10px] uppercase tracking-wider text-slate-400">{key}</span>
-                    <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all ${val ? 'bg-pink-600' : 'bg-slate-800'}`}>
-                      <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${val ? 'left-6' : 'left-1'}`} />
-                    </div>
+            <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Hardware Network</p>
+            <div className="space-y-3">
+              {Object.entries(devices).map(([key, val]) => (
+                <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-[#0d1117] border border-white/[0.04]">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400">{key}</span>
+                  <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all ${val ? 'bg-pink-600' : 'bg-slate-800'}`}>
+                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${val ? 'left-6' : 'left-1'}`} />
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </aside>
 
-          <main className="flex-1 relative flex flex-col items-center justify-center pt-10">
+          <main className="flex-1 relative flex flex-col items-center justify-start pt-10">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)]" />
             
-            {/* ORB Container - Adjusted scale to prevent clipping */}
-            <div className={`relative transition-all duration-1000 ease-in-out ${activeTab === 'DASHBOARD' ? 'scale-[1.2] -translate-y-10' : 'scale-100'}`}>
-                <canvas ref={canvasRef} width={800} height={800} className="relative z-10 w-[600px] h-[600px]" />
+            {/* THE ORB - Positioned higher to clear the text box */}
+            <div className={`relative transition-all duration-1000 z-10 ${activeTab === 'DASHBOARD' ? 'scale-120 translate-y-10' : 'scale-100'}`}>
+                <canvas ref={canvasRef} width={800} height={800} className="relative w-[600px] h-[600px]" />
             </div>
             
-            <div className={`absolute bottom-36 w-full max-w-2xl px-8 transition-all duration-700 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                <div className="p-8 rounded-3xl bg-[#0d1117]/80 border border-white/[0.06] backdrop-blur-2xl shadow-2xl text-center">
+            {/* RESPONSE UI - Relative to avoid crossing behind */}
+            <div className={`absolute bottom-36 w-full max-w-2xl px-8 transition-all duration-700 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+                <div className="p-8 rounded-3xl bg-[#0d1117]/90 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
                     <p className="text-[14px] text-slate-200 font-light italic leading-relaxed">{response}</p>
                 </div>
             </div>
 
-            <div className={`absolute bottom-12 transition-all duration-700 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
+            <div className={`absolute bottom-12 transition-all duration-700 z-30 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
               <button onClick={toggleMic} className={`w-20 h-20 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_40px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
               </button>
