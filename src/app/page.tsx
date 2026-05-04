@@ -36,7 +36,6 @@ export default function JarvisOS() {
     setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
   };
 
-  // --- ENGINE: PRE-CALCULATED FOR INSTANT START ---
   const particles = useMemo(() => {
     return Array.from({ length: 2200 }, () => ({
       theta: Math.random() * Math.PI * 2,
@@ -58,10 +57,10 @@ export default function JarvisOS() {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // LOCKED CONSTANT SPEED
       const rotSpeed = 0.008; 
       const turbulence = 0.15;
-      const baseRadius = activeTab === "DASHBOARD" ? 180 : 135; 
+      // Increased Dashboard radius for the "BIG" look
+      const baseRadius = activeTab === "DASHBOARD" ? 320 : 135; 
       
       frame += rotSpeed;
       const centerX = canvas.width / 2;
@@ -71,8 +70,6 @@ export default function JarvisOS() {
         const pFrame = frame * p.speedMult;
         const wobble = 1 + Math.sin(pFrame * 2 + p.phi * 4) * turbulence;
         const r = baseRadius * wobble;
-        
-        // Horizontal Spin
         const currentTheta = p.theta + frame;
         const x = centerX + r * Math.sin(p.phi) * Math.cos(currentTheta);
         const y = centerY + r * Math.cos(p.phi);
@@ -189,22 +186,22 @@ export default function JarvisOS() {
             </div>
           </aside>
 
-          <main className="flex-1 relative flex flex-col items-center justify-start pt-10">
+          <main className="flex-1 relative flex flex-col items-center justify-start pt-6">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)]" />
             
-            {/* THE ORB - Positioned higher to clear the text box */}
-            <div className={`relative transition-all duration-1000 z-10 ${activeTab === 'DASHBOARD' ? 'scale-120 translate-y-10' : 'scale-100'}`}>
-                <canvas ref={canvasRef} width={800} height={800} className="relative w-[600px] h-[600px]" />
+            {/* THE ORB - Dynamic scaling and positioning */}
+            <div className={`relative transition-all duration-1000 z-10 ${activeTab === 'DASHBOARD' ? 'scale-150 translate-y-24' : 'scale-90 -translate-y-12'}`}>
+                <canvas ref={canvasRef} width={1000} height={1000} className="relative w-[700px] h-[700px]" />
             </div>
             
-            {/* RESPONSE UI - Relative to avoid crossing behind */}
-            <div className={`absolute bottom-36 w-full max-w-2xl px-8 transition-all duration-700 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                <div className="p-8 rounded-3xl bg-[#0d1117]/90 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
+            {/* RESPONSE UI - Positioned to never overlap */}
+            <div className={`absolute bottom-36 w-full max-w-2xl px-8 transition-all duration-700 z-20 ${activeTab === 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <div className="p-8 rounded-3xl bg-[#0d1117]/95 border border-white/[0.08] backdrop-blur-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] text-center">
                     <p className="text-[14px] text-slate-200 font-light italic leading-relaxed">{response}</p>
                 </div>
             </div>
 
-            <div className={`absolute bottom-12 transition-all duration-700 z-30 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
+            <div className={`absolute bottom-12 transition-all duration-700 z-30 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100'}`}>
               <button onClick={toggleMic} className={`w-20 h-20 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_40px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
               </button>
