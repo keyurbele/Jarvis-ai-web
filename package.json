@@ -13,7 +13,11 @@
     "react": "^18",
     "react-dom": "^18",
     "lucide-react": "^0.344.0",
-    "@clerk/nextjs": "^4.29.9"
+    "@clerk/nextjs": "^4.29.9",
+    "@supabase/supabase-js": "^2.43.2",
+    "framer-motion": "^11.0.8",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.1"
   },
   "devDependencies": {
     "typescript": "^5",
