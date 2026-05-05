@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../../lib/supabase";
-import { auth } from "@clerk/nextjs/server"; // To know which user is talking
+import { auth } from "@clerk/nextjs/server"; 
 
 type Memory = {
   name?: string;
@@ -8,10 +7,9 @@ type Memory = {
   otherFacts?: string[];
 };
 
-// ── Instant replies ─────────────────────────────────────────────────────────────
 function instantReply(msg: string, memory: Memory): string | null {
   const m = msg.toLowerCase().trim();
-  if (["hi", "hey", "hello", "yo", "sup"].includes(m))
+  if (["hi","hey","hello","yo","sup"].includes(m))
     return memory.name ? `Hey ${memory.name}, what's up?` : "Hey, what's up?";
   if (m.includes("who made you") || m.includes("who built you"))
     return "Keyur built me.";
@@ -20,8 +18,7 @@ function instantReply(msg: string, memory: Memory): string | null {
   return null;
 }
 
-// ── Extract memory ──────────────────────────────────────────────────────────────
-async function extractMemory(message: string, memory: Memory, userId: string) {
+async function extractMemory(message: string, memory: Memory) {
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -47,58 +44,39 @@ async function extractMemory(message: string, memory: Memory, userId: string) {
     const raw = data.choices?.[0]?.message?.content || "{}";
     const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
 
-    // Update the memory object for the current session
-    const updated = {
+    return {
       ...memory,
-      name: parsed.name || memory.name,
+      ...parsed,
       preferences: [...(memory.preferences || []), ...(parsed.preferences || [])],
       otherFacts: [...(memory.otherFacts || []), ...(parsed.otherFacts || [])],
     };
-
-    // 💾 Pushing to Supabase if new info was found
-    if (parsed.name || (parsed.preferences && parsed.preferences.length > 0) || (parsed.otherFacts && parsed.otherFacts.length > 0)) {
-      await supabase.from("memories").insert([
-        { 
-          user_id: userId, 
-          content: message, // Saving the original message that triggered the memory
-          is_auto: true 
-        }
-      ]);
-    }
-
-    return updated;
-  } catch (error) {
-    console.error("Memory extraction error:", error);
+  } catch {
     return memory;
   }
 }
 
-// ── Main handler ────────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    // FIX: auth() must be awaited in latest Next.js versions
+    // FIX 1: Must await auth()
     const { userId } = await auth(); 
-    
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { message, history = [], userName } = await req.json();
 
     let memory: Memory = { name: userName || undefined };
 
-    // Check for fast/hardcoded replies first
     const fast = instantReply(message, memory);
     if (fast) return NextResponse.json({ reply: fast, memory });
 
-    // Extract and save memory to Supabase
-    const updatedMemory = await extractMemory(message, memory, userId);
+    const updatedMemory = await extractMemory(message, memory);
 
     const SYSTEM_PROMPT = `
 You are JARVIS.
-Personality: Calm, intelligent, slightly witty, masculine tone.
-Rules: Short meaningful responses, no markdown, no bullets.
-Use user's name: ${updatedMemory.name || "Sir"}
+Personality: Calm, intelligent, slightly witty, masculine tone. Speak naturally.
+Rules:
+- Short meaningful responses (1-2 sentences)
+- No markdown, no bullet points
+- Use user's name: ${updatedMemory.name || "unknown"}
 `;
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -108,7 +86,8 @@ Use user's name: ${updatedMemory.name || "Sir"}
         "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        // FIX 2: Switched to 8b-instant to avoid the rate-limit "silence" on free accounts
+        model: "llama-3.1-8b-instant", 
         temperature: 0.7,
         max_tokens: 120,
         messages: [
@@ -119,6 +98,8 @@ Use user's name: ${updatedMemory.name || "Sir"}
       }),
     });
 
+    if (!res.ok) return NextResponse.json({ reply: "System lag. Try again." });
+
     const data = await res.json();
     const reply = data.choices?.[0]?.message?.content?.trim() || "Say that again?";
 
@@ -126,6 +107,6 @@ Use user's name: ${updatedMemory.name || "Sir"}
 
   } catch (error) {
     console.error("JARVIS ERROR:", error);
-    return NextResponse.json({ reply: "System lag detected." }, { status: 500 });
+    return NextResponse.json({ reply: "System error." }, { status: 500 });
   }
 }
