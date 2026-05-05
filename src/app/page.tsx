@@ -17,7 +17,6 @@ export default function JarvisOS() {
   const [log, setLog] = useState<{time: string, msg: string}[]>([]);
   const [mounted, setMounted] = useState(false);
   
-  // NEW: State for Supabase Data
   const [dbMemories, setDbMemories] = useState<any[]>([]);
   const [jarvisName, setJarvisName] = useState("Jarvis");
   const [userHandle, setUserHandle] = useState("Sir");
@@ -37,7 +36,6 @@ export default function JarvisOS() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // NEW: Fetch memories from Supabase when Memory tab is clicked
   useEffect(() => {
     if (activeTab === "MEMORY" && user) {
       fetchMemories();
@@ -74,7 +72,6 @@ export default function JarvisOS() {
     }));
   }, []);
 
-  // --- ORB ANIMATION (UNTOUCHED) ---
   useEffect(() => {
     if (!canvasRef.current || !isActive) return;
     const canvas = canvasRef.current;
@@ -127,8 +124,8 @@ export default function JarvisOS() {
         body: JSON.stringify({ 
             message: input, 
             history: historyRef.current, 
-            userName: userHandle, // Linked to settings
-            jarvisName: jarvisName // Linked to settings
+            userName: userHandle, 
+            jarvisName: jarvisName 
         }),
       });
       const data = await res.json();
@@ -142,16 +139,33 @@ export default function JarvisOS() {
   }, [userHandle, jarvisName, speak]);
 
   const toggleMic = () => {
-    if (micOnRef.current) { setMicOn(false); setState("IDLE"); try { recognitionRef.current?.stop(); } catch {} }
+    if (micOnRef.current) { 
+      setMicOn(false); 
+      setState("IDLE"); 
+      try { recognitionRef.current?.stop(); } catch {} 
+    }
     else {
       const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      if (!recognitionRef.current && SR) {
-        recognitionRef.current = new SR();
-        recognitionRef.current.continuous = true;
-        recognitionRef.current.onresult = (e: any) => { askJarvis(e.results[e.results.length - 1][0].transcript); };
+      if (SR) {
+        if (!recognitionRef.current) {
+          recognitionRef.current = new SR();
+          recognitionRef.current.continuous = true;
+          recognitionRef.current.interimResults = false;
+        }
+        
+        // CORRECTION: Ensure onresult is always linked to the current askJarvis scope
+        recognitionRef.current.onresult = (e: any) => { 
+          const transcript = e.results[e.results.length - 1][0].transcript;
+          if (transcript.trim()) {
+            addLog(`USER: ${transcript}`);
+            askJarvis(transcript); 
+          }
+        };
+
+        setMicOn(true); 
+        setState("LISTENING");
+        try { recognitionRef.current.start(); } catch {}
       }
-      setMicOn(true); setState("LISTENING");
-      try { recognitionRef.current?.start(); } catch {}
     }
   };
 
@@ -191,7 +205,7 @@ export default function JarvisOS() {
       ) : (
         <div className="flex-1 relative flex overflow-hidden">
           
-          {/* TAB: VOICE & DASHBOARD (Combined for your logic) */}
+          {/* TAB: VOICE & DASHBOARD */}
           <div className={`flex-1 flex transition-all duration-700 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
             <aside className={`w-[320px] p-8 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Hardware Network</p>
@@ -247,7 +261,7 @@ export default function JarvisOS() {
             </aside>
           </div>
 
-          {/* TAB: MEMORY (Black Page / Swipeable) */}
+          {/* TAB: MEMORY */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto">
