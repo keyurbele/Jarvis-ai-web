@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
-import { supabase } from "@/lib/supabase"; // THE BRIDGE
+import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion"; // For swiping
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
