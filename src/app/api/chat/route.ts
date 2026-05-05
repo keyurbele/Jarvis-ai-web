@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase"; // The bridge we made
+import { supabase } from "../../../lib/supabase";
 import { auth } from "@clerk/nextjs/server"; // To know which user is talking
 
 type Memory = {
