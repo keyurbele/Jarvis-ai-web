@@ -8,10 +8,10 @@ type Memory = {
   otherFacts?: string[];
 };
 
-// ── Instant replies (STAYS THE SAME) ─────────────────────────────────────────────
+// ── Instant replies ─────────────────────────────────────────────────────────────
 function instantReply(msg: string, memory: Memory): string | null {
   const m = msg.toLowerCase().trim();
-  if (["hi","hey","hello","yo","sup"].includes(m))
+  if (["hi", "hey", "hello", "yo", "sup"].includes(m))
     return memory.name ? `Hey ${memory.name}, what's up?` : "Hey, what's up?";
   if (m.includes("who made you") || m.includes("who built you"))
     return "Keyur built me.";
@@ -20,7 +20,7 @@ function instantReply(msg: string, memory: Memory): string | null {
   return null;
 }
 
-// ── Extract memory (STAYS THE SAME, but added DB save) ───────────────────────────
+// ── Extract memory ──────────────────────────────────────────────────────────────
 async function extractMemory(message: string, memory: Memory, userId: string) {
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -47,43 +47,51 @@ async function extractMemory(message: string, memory: Memory, userId: string) {
     const raw = data.choices?.[0]?.message?.content || "{}";
     const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
 
-    const newMemory = {
+    // Update the memory object for the current session
+    const updated = {
       ...memory,
-      ...parsed,
+      name: parsed.name || memory.name,
       preferences: [...(memory.preferences || []), ...(parsed.preferences || [])],
       otherFacts: [...(memory.otherFacts || []), ...(parsed.otherFacts || [])],
     };
 
-    // 💾 Pushing to Supabase without breaking the flow
-    if (parsed.name || (parsed.preferences?.length) || (parsed.otherFacts?.length)) {
+    // 💾 Pushing to Supabase if new info was found
+    if (parsed.name || (parsed.preferences && parsed.preferences.length > 0) || (parsed.otherFacts && parsed.otherFacts.length > 0)) {
       await supabase.from("memories").insert([
         { 
           user_id: userId, 
-          content: JSON.stringify(parsed), // Saves the new facts
+          content: message, // Saving the original message that triggered the memory
           is_auto: true 
         }
       ]);
     }
 
-    return newMemory;
-  } catch {
+    return updated;
+  } catch (error) {
+    console.error("Memory extraction error:", error);
     return memory;
   }
 }
 
-// ── Main handler (STAYS THE SAME, just added Clerk/Supabase) ───────────────────
+// ── Main handler ────────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    const { userId } = auth(); // Get current user
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // FIX: auth() must be awaited in latest Next.js versions
+    const { userId } = await auth(); 
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const { message, history = [], userName } = await req.json();
 
     let memory: Memory = { name: userName || undefined };
 
+    // Check for fast/hardcoded replies first
     const fast = instantReply(message, memory);
     if (fast) return NextResponse.json({ reply: fast, memory });
 
+    // Extract and save memory to Supabase
     const updatedMemory = await extractMemory(message, memory, userId);
 
     const SYSTEM_PROMPT = `
