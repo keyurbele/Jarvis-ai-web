@@ -1,4 +1,4 @@
-]"use client";
+"use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
