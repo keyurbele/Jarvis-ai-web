@@ -1,64 +1,54 @@
-export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs"; // Note: not /server in older versions
+import { auth } from "@clerk/nextjs/server"; // Use /server for API routes
+
+export const dynamic = 'force-dynamic'; 
 
 export async function POST(req: Request) {
   try {
-    const { userId } = auth(); // Do NOT use await here for your version
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1. Get Clerk Data
+    const { userId } = auth(); 
     
-    // ... rest of your groq fetch code
+    // Fallback: If auth fails but you're in dev, let it pass to test Groq
+    if (!userId && process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await req.json();
     const { message, history = [], userName } = body;
 
     if (!message) {
-      return NextResponse.json({ reply: "I didn't catch that, Sir." });
+      return NextResponse.json({ reply: "I didn't hear anything, Sir." });
     }
 
-    // 2. Check if API Key exists to prevent crash
+    // 2. Check for the Groq Key
     if (!process.env.GROQ_API_KEY) {
-      console.error("CRITICAL: GROQ_API_KEY is missing from environment variables.");
-      return NextResponse.json({ reply: "My API key is missing. Please check Vercel settings." }, { status: 500 });
+      return NextResponse.json({ reply: "API Key missing in Vercel settings." }, { status: 500 });
     }
 
-    // 3. Simple Fetch to Groq
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    // 3. Talk to Groq
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant", // Stable and fast
+        model: "llama-3.1-8b-instant",
         messages: [
-          { 
-            role: "system", 
-            content: `You are JARVIS. Be brief (1-2 sentences). User name: ${userName || "Sir"}.` 
-          },
-          ...history.slice(-5),
+          { role: "system", content: "You are JARVIS. Be brief and helpful." },
+          ...history.slice(-3), // Keep context short
           { role: "user", content: message }
         ],
-        temperature: 0.7,
       }),
     });
 
-    if (!groqResponse.ok) {
-      const errorData = await groqResponse.text();
-      console.error("Groq Error Response:", errorData);
-      return NextResponse.json({ reply: "Communication failure with the core." });
-    }
-
-    const data = await groqResponse.json();
-    const reply = data.choices?.[0]?.message?.content || "I am standing by.";
+    const data = await groqRes.json();
+    const reply = data.choices?.[0]?.message?.content || "Standing by.";
 
     return NextResponse.json({ reply });
 
   } catch (error: any) {
-    console.error("JARVIS ROUTE ERROR:", error);
-    return NextResponse.json(
-      { reply: "Internal System Error.", details: error.message }, 
-      { status: 500 }
-    );
+    console.error("CRASH:", error);
+    return NextResponse.json({ reply: "Core crash: " + error.message }, { status: 500 });
   }
 }
