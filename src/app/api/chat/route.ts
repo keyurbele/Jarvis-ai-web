@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server"; // <--- THIS IS THE MISSING LINE
 export async function POST(req: Request) {
   try {
     // 1. MUST await auth() in Next.js 14/15
