@@ -1,17 +1,13 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server"; 
-
-export const dynamic = 'force-dynamic'; 
+import { auth } from "@clerk/nextjs"; // Note: not /server in older versions
 
 export async function POST(req: Request) {
   try {
-    // 1. Clerk Auth Check (Must await in Next.js 15)
-    const authData = await auth(); 
-    const userId = authData.userId;
+    const { userId } = auth(); // Do NOT use await here for your version
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // ... rest of your groq fetch code
 
     const body = await req.json();
     const { message, history = [], userName } = body;
