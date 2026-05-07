@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // For swiping
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
@@ -36,24 +36,24 @@ export default function JarvisOS() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // Handle Tab-Specific Data Fetching & Settings Sync
+  // SETTINGS SYNC: Load user preferences on start
   useEffect(() => {
-    if (!user) return;
-
-    const syncSystem = async () => {
-      if (activeTab === "SETTINGS" || activeTab === "VOICE") {
+    if (user) {
+      const loadPrefs = async () => {
         const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
         if (data) {
           setJarvisName(data.jarvis_name || "Jarvis");
           setUserHandle(data.user_handle || "Sir");
         }
-      }
-      if (activeTab === "MEMORY") {
-        fetchMemories();
-      }
-    };
+      };
+      loadPrefs();
+    }
+  }, [user]);
 
-    syncSystem();
+  useEffect(() => {
+    if (activeTab === "MEMORY" && user) {
+      fetchMemories();
+    }
   }, [activeTab, user]);
 
   const fetchMemories = async () => {
@@ -69,29 +69,25 @@ export default function JarvisOS() {
   const hideMemory = async (id: string) => {
     await supabase.from("memories").update({ is_hidden: true }).eq("id", id);
     setDbMemories(prev => prev.filter(m => m.id !== id));
-    addLog("SYSTEM: Neural record archived.");
-  };
-
-  const saveSettings = async () => {
-    if (user) {
-      const { error } = await supabase.from("profiles").upsert({ 
-        id: user.id, 
-        jarvis_name: jarvisName, 
-        user_handle: userHandle,
-        updated_at: new Date().toISOString()
-      });
-      if (!error) {
-        addLog(`SYSTEM: Identity updated to ${jarvisName}.`);
-        speak("Settings updated, " + userHandle);
-        setActiveTab("VOICE");
-      }
-    }
   };
 
   const addLog = (msg: string) => {
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour12: false });
     setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
+  };
+
+  // SETTINGS UPDATE: Save identity changes to Supabase
+  const saveSettings = async () => {
+    if (user) {
+      await supabase.from("profiles").upsert({ 
+        id: user.id, 
+        jarvis_name: jarvisName, 
+        user_handle: userHandle 
+      });
+      addLog("SYSTEM: Neural identity parameters updated.");
+      setActiveTab("VOICE");
+    }
   };
 
   const particles = useMemo(() => {
@@ -148,6 +144,14 @@ export default function JarvisOS() {
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
     setState("THINKING");
+
+    // MEMORY CAPTURE: Check if user is sharing something personal
+    const triggerWords = ["i am", "my name is", "i like", "remember", "i am a", "i'm"];
+    if (triggerWords.some(word => input.toLowerCase().includes(word)) && user) {
+        await supabase.from("memories").insert({ user_id: user.id, content: input });
+        addLog("SYSTEM: Neural memory committed.");
+    }
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -167,7 +171,7 @@ export default function JarvisOS() {
         speak(data.reply);
       }
     } catch (e) { setState("IDLE"); }
-  }, [userHandle, jarvisName, speak]);
+  }, [userHandle, jarvisName, speak, user]);
 
   const toggleMic = () => {
     if (micOnRef.current) { 
@@ -291,10 +295,10 @@ export default function JarvisOS() {
             </aside>
           </div>
 
-          {/* TAB: MEMORY (Updated Logic) */}
+          {/* TAB: MEMORY */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto custom-scrollbar">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto">
                 <h1 className="text-white text-xs tracking-[1em] uppercase mb-20 opacity-50">Memory Archive</h1>
                 <div className="w-full max-w-xl space-y-4">
                   {dbMemories.map((m) => (
@@ -305,10 +309,7 @@ export default function JarvisOS() {
                       onDragEnd={(_, info) => info.offset.x < -50 && hideMemory(m.id)}
                       className="p-6 bg-[#0d1117] border border-white/[0.05] rounded-2xl cursor-grab active:cursor-grabbing flex justify-between items-center group"
                     >
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm text-slate-300 font-light">{m.content}</p>
-                        <p className="text-[8px] text-slate-600 font-mono">{new Date(m.created_at).toLocaleString()}</p>
-                      </div>
+                      <p className="text-sm text-slate-300 font-light">{m.content}</p>
                       <span className="text-[8px] uppercase tracking-widest text-slate-600 group-hover:text-pink-500 transition-colors">Swipe to hide</span>
                     </motion.div>
                   ))}
@@ -318,7 +319,7 @@ export default function JarvisOS() {
             )}
           </AnimatePresence>
 
-          {/* TAB: SETTINGS (Updated Logic) */}
+          {/* TAB: SETTINGS (Now Functional) */}
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center justify-center p-20">
