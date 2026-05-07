@@ -36,19 +36,24 @@ export default function JarvisOS() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // Sync with Supabase on Tab Change or User Load
+  // Handle Tab-Specific Data Fetching & Settings Sync
   useEffect(() => {
-    if (user) {
-      const syncProfile = async () => {
+    if (!user) return;
+
+    const syncSystem = async () => {
+      if (activeTab === "SETTINGS" || activeTab === "VOICE") {
         const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
         if (data) {
-          setJarvisName(data.jarvis_name);
-          setUserHandle(data.user_handle);
+          setJarvisName(data.jarvis_name || "Jarvis");
+          setUserHandle(data.user_handle || "Sir");
         }
-      };
-      syncProfile();
-      if (activeTab === "MEMORY") fetchMemories();
-    }
+      }
+      if (activeTab === "MEMORY") {
+        fetchMemories();
+      }
+    };
+
+    syncSystem();
   }, [activeTab, user]);
 
   const fetchMemories = async () => {
@@ -64,18 +69,23 @@ export default function JarvisOS() {
   const hideMemory = async (id: string) => {
     await supabase.from("memories").update({ is_hidden: true }).eq("id", id);
     setDbMemories(prev => prev.filter(m => m.id !== id));
+    addLog("SYSTEM: Neural record archived.");
   };
 
   const saveSettings = async () => {
     if (user) {
-      await supabase.from("profiles").upsert({ 
+      const { error } = await supabase.from("profiles").upsert({ 
         id: user.id, 
         jarvis_name: jarvisName, 
-        user_handle: userHandle 
+        user_handle: userHandle,
+        updated_at: new Date().toISOString()
       });
-      addLog("SYSTEM: Neural identity updated.");
+      if (!error) {
+        addLog(`SYSTEM: Identity updated to ${jarvisName}.`);
+        speak("Settings updated, " + userHandle);
+        setActiveTab("VOICE");
+      }
     }
-    setActiveTab("VOICE");
   };
 
   const addLog = (msg: string) => {
@@ -84,7 +94,6 @@ export default function JarvisOS() {
     setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
   };
 
-  // The 2200 Particle Engine (RESTORED)
   const particles = useMemo(() => {
     return Array.from({ length: 2200 }, () => ({
       theta: Math.random() * Math.PI * 2,
@@ -115,9 +124,7 @@ export default function JarvisOS() {
         const x = centerX + r * Math.sin(p.phi) * Math.cos(currentTheta);
         const y = centerY + r * Math.cos(p.phi);
         const depth = (Math.sin(currentTheta) + 1) / 2;
-        let rgb = "255, 20, 147"; 
-        if (i % 5 === 0) rgb = "168, 85, 247"; 
-        if (i % 15 === 0) rgb = "255, 255, 255";
+        let rgb = "255, 20, 147"; if (i % 5 === 0) rgb = "168, 85, 247"; if (i % 15 === 0) rgb = "255, 255, 255";
         ctx.beginPath();
         ctx.arc(x, y, (0.4 + depth * 3.5) * (p.size/2), 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
@@ -155,7 +162,7 @@ export default function JarvisOS() {
       const data = await res.json();
       if (res.ok) {
         setResponse(data.reply);
-        addLog(`JARVIS: ${data.reply}`);
+        addLog(`${jarvisName.toUpperCase()}: ${data.reply}`);
         historyRef.current = [...historyRef.current, { role: "user", content: input }, { role: "assistant", content: data.reply }].slice(-10);
         speak(data.reply);
       }
@@ -176,6 +183,7 @@ export default function JarvisOS() {
           recognitionRef.current.continuous = true;
           recognitionRef.current.interimResults = false;
         }
+        
         recognitionRef.current.onresult = (e: any) => { 
           const transcript = e.results[e.results.length - 1][0].transcript;
           if (transcript.trim()) {
@@ -183,6 +191,7 @@ export default function JarvisOS() {
             askJarvis(transcript); 
           }
         };
+
         setMicOn(true); 
         setState("LISTENING");
         try { recognitionRef.current.start(); } catch {}
@@ -282,10 +291,10 @@ export default function JarvisOS() {
             </aside>
           </div>
 
-          {/* TAB: MEMORY */}
+          {/* TAB: MEMORY (Updated Logic) */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto custom-scrollbar">
                 <h1 className="text-white text-xs tracking-[1em] uppercase mb-20 opacity-50">Memory Archive</h1>
                 <div className="w-full max-w-xl space-y-4">
                   {dbMemories.map((m) => (
@@ -296,7 +305,10 @@ export default function JarvisOS() {
                       onDragEnd={(_, info) => info.offset.x < -50 && hideMemory(m.id)}
                       className="p-6 bg-[#0d1117] border border-white/[0.05] rounded-2xl cursor-grab active:cursor-grabbing flex justify-between items-center group"
                     >
-                      <p className="text-sm text-slate-300 font-light">{m.content}</p>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-sm text-slate-300 font-light">{m.content}</p>
+                        <p className="text-[8px] text-slate-600 font-mono">{new Date(m.created_at).toLocaleString()}</p>
+                      </div>
                       <span className="text-[8px] uppercase tracking-widest text-slate-600 group-hover:text-pink-500 transition-colors">Swipe to hide</span>
                     </motion.div>
                   ))}
@@ -306,7 +318,7 @@ export default function JarvisOS() {
             )}
           </AnimatePresence>
 
-          {/* TAB: SETTINGS */}
+          {/* TAB: SETTINGS (Updated Logic) */}
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center justify-center p-20">
