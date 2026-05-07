@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,174 +7,209 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function JarvisOS() {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
+  
+  // UI & Brain States
   const [activeTab, setActiveTab] = useState("VOICE");
-  const [isActive, setIsActive] = useState(false);
-  const [response, setResponse] = useState("System Online.");
+  const [response, setResponse] = useState("System online. Awaiting your command.");
   const [jarvisName, setJarvisName] = useState("Jarvis");
   const [userHandle, setUserHandle] = useState("Sir");
   
-  // Memory States
+  // Sidebar Toggles (Visual only)
+  const [hardware, setHardware] = useState([
+    { name: "LIVING RM LIGHTS", active: true },
+    { name: "BEDROOM FAN", active: true },
+    { name: "FRONT DOOR LOCK", active: false },
+    { name: "MAIN AC UNIT", active: false },
+    { name: "AUDIO SPEAKER", active: true },
+  ]);
+
   const [memories, setMemories] = useState<any[]>([]);
-  const [showHidden, setShowHidden] = useState(false);
   const [unlockPass, setUnlockPass] = useState("");
   const [nukeConfirm, setNukeConfirm] = useState("");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Load Profile and Memories
+  // 1. Reactive Neural Sphere Engine
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let particles: any[] = [];
+    const sphereRadius = 150;
+    
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener("resize", resize);
+    resize();
+
+    // Create a 3D-ish Sphere
+    for (let i = 0; i < 400; i++) {
+      const phi = Math.acos(-1 + (2 * i) / 400);
+      const theta = Math.sqrt(400 * Math.PI) * phi;
+      particles.push({
+        phi, theta,
+        size: Math.random() * 2 + 1,
+        color: i % 5 === 0 ? "#ffffff" : "#ff1493",
+      });
+    }
+
+    let rotation = 0;
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      rotation += 0.005;
+      
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      particles.forEach((p) => {
+        const x = sphereRadius * Math.sin(p.phi) * Math.cos(p.theta + rotation);
+        const y = sphereRadius * Math.sin(p.phi) * Math.sin(p.theta + rotation);
+        const z = sphereRadius * Math.cos(p.phi);
+
+        const scale = (z + sphereRadius) / (2 * sphereRadius);
+        const finalX = centerX + x;
+        const finalY = centerY + y;
+
+        ctx.globalAlpha = scale;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(finalX, finalY, p.size * scale, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      requestAnimationFrame(animate);
+    };
+    animate();
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
   useEffect(() => {
     if (user) {
-      const fetchProfile = async () => {
-        const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-        if (data) {
-          setJarvisName(data.jarvis_name);
-          setUserHandle(data.user_handle);
-        } else {
-          await supabase.from("profiles").insert({ id: user.id, jarvis_name: "Jarvis", user_handle: "Sir" });
+      const sync = async () => {
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+        if (profile) {
+          setJarvisName(profile.jarvis_name);
+          setUserHandle(profile.user_handle);
         }
+        const { data: mems } = await supabase.from("memories").select("*").eq("user_id", user.id).eq("is_hidden", false);
+        if (mems) setMemories(mems);
       };
-      const fetchMemories = async () => {
-        const { data } = await supabase.from("memories").select("*").eq("user_id", user.id).eq("is_hidden", false);
-        if (data) setMemories(data);
-      };
-      fetchProfile(); fetchMemories();
+      sync();
     }
   }, [user]);
-
-  const updateProfile = async () => {
-    await supabase.from("profiles").update({ jarvis_name: jarvisName, user_handle: userHandle }).eq("id", user?.id);
-    alert("Profile Updated, Sir.");
-  };
-
-  const hideMemory = async (id: string) => {
-    await supabase.from("memories").update({ is_hidden: true }).eq("id", id);
-    setMemories(prev => prev.filter(m => m.id !== id));
-  };
-
-  const nukeMemory = async () => {
-    if (nukeConfirm === "DELETE ALL") {
-      await supabase.from("memories").delete().eq("user_id", user?.id);
-      setMemories([]);
-      setNukeConfirm("");
-      alert("Memory wiped.");
-    }
-  };
 
   if (!isLoaded) return null;
 
   return (
-    <main className="fixed inset-0 bg-[#010409] text-pink-500 font-sans flex flex-col overflow-hidden">
-      {/* Navigation */}
-      <nav className="h-20 px-10 flex items-center justify-between border-b border-pink-500/10 bg-black/40 backdrop-blur-xl z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 bg-pink-500 rounded-full shadow-[0_0_15px_#ff1493]" />
-          <span className="text-xs font-bold tracking-[0.5em] uppercase">{jarvisName} OS</span>
+    <main className="fixed inset-0 bg-[#020205] text-pink-500 font-mono flex flex-col overflow-hidden">
+      {/* Background Sphere */}
+      <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none opacity-60" />
+      
+      {/* Top Navigation */}
+      <nav className="h-16 px-8 flex items-center justify-between border-b border-pink-500/10 bg-black/40 backdrop-blur-md z-50">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_#ff1493]" />
+          <span className="text-[10px] font-bold tracking-[0.4em] uppercase text-white">{jarvisName} OS</span>
         </div>
-        <div className="flex gap-10 text-[10px] tracking-widest uppercase font-bold">
-          {["Voice", "Archive", "Settings"].map(t => (
-            <button key={t} onClick={() => setActiveTab(t.toUpperCase())} className={activeTab === t.toUpperCase() ? "text-white underline decoration-pink-500 underline-offset-8" : "hover:text-pink-300"}>{t}</button>
+        <div className="flex gap-8 text-[9px] tracking-widest uppercase font-bold">
+          {["Voice", "Dashboard", "Archive", "Settings"].map(t => (
+            <button key={t} onClick={() => setActiveTab(t.toUpperCase())} className={activeTab === t.toUpperCase() ? "text-pink-500 underline underline-offset-4" : "text-white/40 hover:text-white transition-colors"}>{t}</button>
           ))}
         </div>
-        <UserButton afterSignOutUrl="/" />
+        <div className="flex items-center gap-4">
+          <button className="text-[9px] border border-pink-500/30 px-3 py-1 rounded uppercase hover:bg-pink-500 hover:text-black transition-all">Authorize</button>
+          <UserButton afterSignOutUrl="/" />
+        </div>
       </nav>
 
-      <div className="flex-1 relative">
-        {/* Tab 1: Voice (The Brain) */}
-        {activeTab === "VOICE" && (
-          <div className="h-full flex flex-col items-center justify-center space-y-10">
-            <div className="w-64 h-64 rounded-full border border-pink-500/20 flex items-center justify-center animate-pulse">
-               <div className="w-48 h-48 rounded-full border-2 border-pink-500 shadow-[0_0_50px_rgba(255,20,147,0.3)]" />
+      <div className="flex-1 flex relative">
+        {/* LEFT SIDEBAR: Hardware Network */}
+        <aside className="w-72 border-r border-pink-500/5 p-6 space-y-6 hidden lg:block z-20 bg-black/10">
+          <p className="text-[9px] tracking-[0.3em] text-pink-500/40 uppercase mb-4">Hardware Network</p>
+          {hardware.map((item, i) => (
+            <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+              <span className="text-[10px] text-white/70 font-bold">{item.name}</span>
+              <div className={`w-8 h-4 rounded-full relative transition-colors ${item.active ? 'bg-pink-500' : 'bg-white/10'}`}>
+                <div className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-all ${item.active ? 'right-0.5' : 'left-0.5'}`} />
+              </div>
             </div>
-            <p className="max-w-md text-center italic text-pink-200/70 text-sm px-10">{response}</p>
-          </div>
-        )}
+          ))}
+        </aside>
 
-        {/* Tab 2: Memory Archive (Swipe to Hide) */}
-        {activeTab === "ARCHIVE" && (
-          <div className="p-10 max-w-2xl mx-auto space-y-4 h-full overflow-y-auto">
-            <h2 className="text-[10px] tracking-[0.4em] uppercase text-pink-500/50 mb-10 text-center">Neural Archive</h2>
-            <AnimatePresence>
-              {memories.map((m) => (
-                <motion.div 
-                  key={m.id}
-                  drag="x"
-                  dragConstraints={{ left: -100, right: 0 }}
-                  onDragEnd={(_, info) => info.offset.x < -50 && hideMemory(m.id)}
-                  className="p-6 bg-pink-500/5 border border-pink-500/10 rounded-2xl flex justify-between items-center group cursor-grab active:cursor-grabbing"
-                >
-                  <p className="text-sm text-pink-100">{m.content}</p>
-                  <span className="text-[8px] text-pink-500/20 uppercase opacity-0 group-hover:opacity-100">Swipe Left to Hide</span>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
+        {/* CENTER: Main OS Interface */}
+        <section className="flex-1 flex flex-col items-center justify-center relative">
+          {activeTab === "VOICE" && (
+            <div className="text-center z-30">
+              <div className="bg-black/60 backdrop-blur-md border border-white/5 px-8 py-4 rounded-xl mb-10 shadow-2xl">
+                <p className="text-sm italic text-pink-100 tracking-wide font-light">"{response}"</p>
+              </div>
+              <div className="w-14 h-14 rounded-full border border-pink-500 flex items-center justify-center hover:bg-pink-500/10 transition-all cursor-pointer">
+                <div className="w-2 h-2 bg-pink-500 rounded-full animate-ping" />
+              </div>
+            </div>
+          )}
 
-        {/* Tab 3: Settings (The Photo Layout) */}
-        {activeTab === "SETTINGS" && (
-          <div className="h-full overflow-y-auto p-10 max-w-xl mx-auto">
-            <div className="space-y-12">
-              {/* Account Section */}
-              <section>
-                <p className="text-[10px] tracking-widest uppercase text-pink-500/40 mb-6">Account</p>
-                <div className="space-y-1">
-                  <div className="p-4 bg-white/5 rounded-t-2xl flex items-center justify-between border-b border-white/5">
-                    <span className="text-sm">Profile</span>
-                    <span className="text-xs text-white/40">{user?.primaryEmailAddress?.emailAddress}</span>
-                  </div>
-                  <div className="p-4 bg-white/5 flex flex-col gap-4 border-b border-white/5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Designation</span>
-                      <input value={jarvisName} onChange={(e)=>setJarvisName(e.target.value)} className="bg-transparent text-right outline-none text-white text-sm" />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">User Handle</span>
-                      <input value={userHandle} onChange={(e)=>setUserHandle(e.target.value)} className="bg-transparent text-right outline-none text-white text-sm" />
-                    </div>
-                    <button onClick={updateProfile} className="w-full py-2 bg-pink-500 text-black text-[10px] font-bold uppercase rounded-lg">Sync Profile</button>
-                  </div>
-                  <div className="p-4 bg-white/5 flex justify-between border-b border-white/5 opacity-50"><span className="text-sm">Preferences</span><span className="text-xs">Locked</span></div>
-                  <div className="p-4 bg-white/5 rounded-b-2xl flex justify-between opacity-50"><span className="text-sm">Notifications</span><span className="text-xs">Disabled</span></div>
+          {/* OVERLAYS FOR ARCHIVE & SETTINGS */}
+          <AnimatePresence>
+            {activeTab === "ARCHIVE" && (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-xl z-40 p-20 overflow-y-auto">
+                <h2 className="text-xl font-bold uppercase tracking-[0.5em] mb-10 text-center">Neural Memory Bank</h2>
+                <div className="max-w-2xl mx-auto space-y-4">
+                  {memories.map(m => (
+                    <motion.div drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={(_, info) => info.offset.x < -50 && supabase.from("memories").update({ is_hidden: true }).eq("id", m.id)} key={m.id} className="p-6 bg-white/5 border border-white/10 rounded-xl flex justify-between group">
+                      <p className="text-sm text-pink-100">{m.content}</p>
+                      <span className="text-[8px] text-pink-500 opacity-0 group-hover:opacity-100">Swipe Left to Hide</span>
+                    </motion.div>
+                  ))}
                 </div>
-              </section>
+              </motion.div>
+            )}
 
-              {/* Privacy Section */}
-              <section>
-                <p className="text-[10px] tracking-widest uppercase text-pink-500/40 mb-6">Privacy Settings</p>
-                <div className="space-y-1">
-                  <div className="p-6 bg-white/5 rounded-2xl space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-[9px] uppercase tracking-widest text-pink-300">View Hidden Vault</label>
-                      <input 
-                        placeholder="Type 'yes' to reveal" 
-                        value={unlockPass} 
-                        onChange={(e)=>setUnlockPass(e.target.value)}
-                        className="w-full bg-black/40 border border-pink-500/20 rounded p-3 text-sm outline-none focus:border-pink-500" 
-                      />
-                    </div>
-                    {unlockPass.toLowerCase() === "yes" && (
-                      <div className="p-4 bg-pink-500/10 rounded-xl border border-pink-500/30 animate-in fade-in">
-                        <p className="text-[10px] mb-2 uppercase">Hidden Records Found</p>
-                        <p className="text-xs italic">Hidden data is active in neural memory but excluded from core view.</p>
-                      </div>
-                    )}
-
-                    <div className="pt-6 border-t border-white/5 space-y-4">
-                       <label className="text-[9px] uppercase tracking-widest text-red-500">Danger Zone</label>
-                       <input 
-                        placeholder="Type 'DELETE ALL'" 
-                        value={nukeConfirm} 
-                        onChange={(e)=>setNukeConfirm(e.target.value)}
-                        className="w-full bg-red-500/5 border border-red-500/20 rounded p-3 text-sm outline-none text-red-500" 
-                      />
-                       <button onClick={nukeMemory} className="w-full py-3 border border-red-500 text-red-500 text-[10px] font-bold uppercase hover:bg-red-500 hover:text-white transition-all">Nuke Memory Bank</button>
+            {activeTab === "SETTINGS" && (
+              <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#0a0a0f]/95 backdrop-blur-2xl z-40 p-12 overflow-y-auto">
+                <div className="max-w-xl mx-auto space-y-12">
+                  <header><h2 className="text-sm font-black uppercase tracking-[0.6em]">System Configuration</h2></header>
+                  <div className="space-y-4">
+                    <p className="text-[9px] text-pink-500/40 uppercase">Profile Matrix</p>
+                    <div className="bg-white/5 rounded-xl border border-white/5 p-6 space-y-4">
+                      <div className="flex justify-between items-center"><span className="text-xs uppercase">Jarvis Name</span><input value={jarvisName} onChange={(e)=>setJarvisName(e.target.value)} className="bg-transparent text-right outline-none text-white border-b border-pink-500/20" /></div>
+                      <div className="flex justify-between items-center"><span className="text-xs uppercase">User Handle</span><input value={userHandle} onChange={(e)=>setUserHandle(e.target.value)} className="bg-transparent text-right outline-none text-white border-b border-pink-500/20" /></div>
+                      <button onClick={() => supabase.from("profiles").update({ jarvis_name: jarvisName, user_handle: userHandle }).eq("id", user?.id)} className="w-full py-2 bg-pink-500 text-black font-bold text-[10px] uppercase rounded">Commit Changes</button>
                     </div>
                   </div>
+                  <div className="space-y-4">
+                    <p className="text-[9px] text-red-500/60 uppercase">Data Purge</p>
+                    <div className="bg-red-500/5 rounded-xl border border-red-500/10 p-6 space-y-4">
+                      <input placeholder="Type 'DELETE ALL'" value={nukeConfirm} onChange={(e)=>setNukeConfirm(e.target.value)} className="w-full bg-black/40 border border-red-500/20 p-3 text-xs outline-none text-red-500" />
+                      <button onClick={() => nukeConfirm === 'DELETE ALL' && supabase.from("memories").delete().eq("user_id", user?.id)} className="w-full py-2 border border-red-500 text-red-500 font-bold text-[10px] uppercase rounded">Nuke Memory</button>
+                    </div>
+                  </div>
+                  <button onClick={() => signOut()} className="w-full text-pink-500/20 hover:text-red-500 text-[10px] uppercase tracking-widest pt-10 transition-colors">Terminate Session</button>
                 </div>
-              </section>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
 
-              <button onClick={() => signOut()} className="w-full py-4 text-white/40 text-[10px] tracking-[0.4em] uppercase hover:text-pink-500 transition-all">Terminate Session</button>
+        {/* RIGHT SIDEBAR: Neural Memory / Logs */}
+        <aside className="w-80 border-l border-pink-500/5 p-6 space-y-10 hidden xl:block z-20 bg-black/10">
+          <div className="space-y-4">
+            <p className="text-[9px] tracking-[0.3em] text-pink-500/40 uppercase">Neural Memory</p>
+            <div className="flex gap-2">
+              <span className="text-[8px] bg-pink-500/10 border border-pink-500/20 px-2 py-1 rounded">User: {userHandle}</span>
+              <span className="text-[8px] bg-white/5 border border-white/10 px-2 py-1 rounded">Access: ADMIN</span>
             </div>
           </div>
-        )}
+          <div className="space-y-4">
+            <p className="text-[9px] tracking-[0.3em] text-pink-500/40 uppercase">System Logs</p>
+            <div className="font-mono text-[9px] space-y-2 opacity-60">
+              <p className="text-pink-300">[{new Date().toLocaleTimeString()}] USER: hey jarvis</p>
+              <p className="text-white/40">[{new Date().toLocaleTimeString()}] CORE: processing_request...</p>
+            </div>
+          </div>
+        </aside>
       </div>
     </main>
   );
