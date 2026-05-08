@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
-import { motion, AnimatePresence } from "framer-motion"; // For swiping
+import { motion, AnimatePresence } from "framer-motion";
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
@@ -17,9 +17,15 @@ export default function JarvisOS() {
   const [log, setLog] = useState<{time: string, msg: string}[]>([]);
   const [mounted, setMounted] = useState(false);
   
+  // Data Logic States
   const [dbMemories, setDbMemories] = useState<any[]>([]);
+  const [hiddenMemories, setHiddenMemories] = useState<any[]>([]);
   const [jarvisName, setJarvisName] = useState("Jarvis");
   const [userHandle, setUserHandle] = useState("Sir");
+  const [showHidden, setShowHidden] = useState(false);
+  const [unlockInput, setUnlockInput] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [devices, setDevices] = useState<Record<string, boolean>>({
     "Living Rm Lights": true, "Bedroom Fan": true, "Front Door Lock": false,
@@ -36,60 +42,47 @@ export default function JarvisOS() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // SETTINGS SYNC: Load user preferences on start
-  useEffect(() => {
-    if (user) {
-      const loadPrefs = async () => {
-        const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-        if (data) {
-          setJarvisName(data.jarvis_name || "Jarvis");
-          setUserHandle(data.user_handle || "Sir");
-        }
-      };
-      loadPrefs();
-    }
+  // FETCH ALL DATA
+  const refreshData = useCallback(async () => {
+    if (!user) return;
+    const { data: prof } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    if (prof) { setJarvisName(prof.jarvis_name || "Jarvis"); setUserHandle(prof.user_handle || "Sir"); }
+    const { data: act } = await supabase.from("memories").select("*").eq("user_id", user.id).eq("is_hidden", false).order("created_at", { ascending: false });
+    const { data: hid } = await supabase.from("memories").select("*").eq("user_id", user.id).eq("is_hidden", true).order("created_at", { ascending: false });
+    if (act) setDbMemories(act);
+    if (hid) setHiddenMemories(hid);
   }, [user]);
 
-  useEffect(() => {
-    if (activeTab === "MEMORY" && user) {
-      fetchMemories();
-    }
-  }, [activeTab, user]);
-
-  const fetchMemories = async () => {
-    const { data } = await supabase
-      .from("memories")
-      .select("*")
-      .eq("user_id", user?.id)
-      .eq("is_hidden", false)
-      .order("created_at", { ascending: false });
-    if (data) setDbMemories(data);
-  };
+  useEffect(() => { if (user) refreshData(); }, [user, activeTab, refreshData]);
 
   const hideMemory = async (id: string) => {
     await supabase.from("memories").update({ is_hidden: true }).eq("id", id);
-    setDbMemories(prev => prev.filter(m => m.id !== id));
+    refreshData();
+    addLog("SYSTEM: Memory moved to locked vault.");
   };
 
-  const addLog = (msg: string) => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour12: false });
-    setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
-  };
-
-  // SETTINGS UPDATE: Save identity changes to Supabase
   const saveSettings = async () => {
     if (user) {
-      await supabase.from("profiles").upsert({ 
-        id: user.id, 
-        jarvis_name: jarvisName, 
-        user_handle: userHandle 
-      });
-      addLog("SYSTEM: Neural identity parameters updated.");
+      await supabase.from("profiles").upsert({ id: user.id, jarvis_name: jarvisName, user_handle: userHandle });
+      addLog("SYSTEM: Identity sync complete.");
       setActiveTab("VOICE");
     }
   };
 
+  const deleteEverything = async () => {
+    if (deleteConfirm === "CONFIRM DELETE" && user) {
+      await supabase.from("memories").delete().eq("user_id", user.id);
+      setDeleteConfirm(""); setIsDeleting(false); refreshData();
+      addLog("SYSTEM: Neural wipe successful.");
+    }
+  };
+
+  const addLog = (msg: string) => {
+    const timeStr = new Date().toLocaleTimeString([], { hour12: false });
+    setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
+  };
+
+  // 2200 PARTICLE ENGINE - UNTOUCHED
   const particles = useMemo(() => {
     return Array.from({ length: 2200 }, () => ({
       theta: Math.random() * Math.PI * 2,
@@ -121,10 +114,9 @@ export default function JarvisOS() {
         const y = centerY + r * Math.cos(p.phi);
         const depth = (Math.sin(currentTheta) + 1) / 2;
         let rgb = "255, 20, 147"; if (i % 5 === 0) rgb = "168, 85, 247"; if (i % 15 === 0) rgb = "255, 255, 255";
-        ctx.beginPath();
-        ctx.arc(x, y, (0.4 + depth * 3.5) * (p.size/2), 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(x, y, (0.4 + depth * 3.5) * (p.size/2), 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
-        if (i % 60 === 0) { ctx.shadowBlur = 15; ctx.shadowColor = `rgb(${rgb})`; } else { ctx.shadowBlur = 0; }
+        if (i % 60 === 0) { ctx.shadowBlur = 15; ctx.shadowColor = `rgb(${rgb})`; }
         ctx.fill();
       });
       requestAnimationFrame(animate);
@@ -142,26 +134,22 @@ export default function JarvisOS() {
   }, []);
 
   const askJarvis = useCallback(async (input: string) => {
-    if (!input.trim()) return;
+    if (!input.trim() || !user) return;
     setState("THINKING");
 
-    // MEMORY CAPTURE: Check if user is sharing something personal
-    const triggerWords = ["i am", "my name is", "i like", "remember", "i am a", "i'm"];
-    if (triggerWords.some(word => input.toLowerCase().includes(word)) && user) {
-        await supabase.from("memories").insert({ user_id: user.id, content: input });
-        addLog("SYSTEM: Neural memory committed.");
+    // DYNAMIC MEMORY CAPTURE: Listen for anything personal (GF name, hobbies, etc)
+    const personalStrings = ["my", "i am", "name is", "remember", "i like", "i'm", "she", "he"];
+    if (personalStrings.some(s => input.toLowerCase().includes(s))) {
+        await supabase.from("memories").insert({ user_id: user.id, content: input, is_hidden: false });
+        addLog("SYSTEM: Neural record stored.");
+        refreshData();
     }
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            message: input, 
-            history: historyRef.current, 
-            userName: userHandle, 
-            jarvisName: jarvisName 
-        }),
+        body: JSON.stringify({ message: input, history: historyRef.current, userName: userHandle, jarvisName: jarvisName }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -171,14 +159,10 @@ export default function JarvisOS() {
         speak(data.reply);
       }
     } catch (e) { setState("IDLE"); }
-  }, [userHandle, jarvisName, speak, user]);
+  }, [user, userHandle, jarvisName, speak, refreshData]);
 
   const toggleMic = () => {
-    if (micOnRef.current) { 
-      setMicOn(false); 
-      setState("IDLE"); 
-      try { recognitionRef.current?.stop(); } catch {} 
-    }
+    if (micOnRef.current) { setMicOn(false); setState("IDLE"); try { recognitionRef.current?.stop(); } catch {} }
     else {
       const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       if (SR) {
@@ -187,17 +171,11 @@ export default function JarvisOS() {
           recognitionRef.current.continuous = true;
           recognitionRef.current.interimResults = false;
         }
-        
         recognitionRef.current.onresult = (e: any) => { 
           const transcript = e.results[e.results.length - 1][0].transcript;
-          if (transcript.trim()) {
-            addLog(`USER: ${transcript}`);
-            askJarvis(transcript); 
-          }
+          if (transcript.trim()) { addLog(`USER: ${transcript}`); askJarvis(transcript); }
         };
-
-        setMicOn(true); 
-        setState("LISTENING");
+        setMicOn(true); setState("LISTENING");
         try { recognitionRef.current.start(); } catch {}
       }
     }
@@ -216,9 +194,7 @@ export default function JarvisOS() {
       {/* Nav Bar */}
       <nav className={`h-16 px-10 flex items-center justify-between border-b border-white/[0.03] bg-[#010409] z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-4">
-          <div className="w-6 h-6 border border-pink-500/40 rounded flex items-center justify-center">
-            <div className="w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_#ff1493]" />
-          </div>
+          <div className="w-6 h-6 border border-pink-500/40 rounded flex items-center justify-center"><div className="w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_#ff1493]" /></div>
           <span className="text-xs font-bold tracking-[0.4em] text-white uppercase italic">{jarvisName}<span className="text-pink-500 font-light">OS</span></span>
         </div>
         <div className="flex gap-12 text-[10px] tracking-[0.3em] uppercase font-bold">
@@ -239,7 +215,7 @@ export default function JarvisOS() {
       ) : (
         <div className="flex-1 relative flex overflow-hidden">
           
-          {/* TAB: VOICE & DASHBOARD */}
+          {/* TAB: VOICE & DASHBOARD (SIDEBARS LOCKED) */}
           <div className={`flex-1 flex transition-all duration-700 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
             <aside className={`w-[320px] p-8 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Hardware Network</p>
@@ -247,9 +223,7 @@ export default function JarvisOS() {
                 {Object.entries(devices).map(([key, val]) => (
                     <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-[#0d1117] border border-white/[0.04]">
                     <span className="text-[10px] uppercase tracking-wider text-slate-400">{key}</span>
-                    <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all ${val ? 'bg-pink-600' : 'bg-slate-800'}`}>
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${val ? 'left-6' : 'left-1'}`} />
-                    </div>
+                    <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all ${val ? 'bg-pink-600' : 'bg-slate-800'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${val ? 'left-6' : 'left-1'}`} /></div>
                     </div>
                 ))}
                 </div>
@@ -258,91 +232,98 @@ export default function JarvisOS() {
             <main className="flex-1 relative flex flex-col items-center justify-center">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#0d1425_0%,_#010409_85%)]" />
                 <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center ${activeTab === 'DASHBOARD' ? 'scale-125 translate-y-0' : 'scale-100 -translate-y-20'}`}>
-                    <canvas ref={canvasRef} width={800} height={800} className="relative w-[600px] h-[600px] max-w-full max-h-full" />
+                    <canvas ref={canvasRef} width={800} height={800} className="relative w-[600px] h-[600px]" />
                 </div>
                 <div className={`absolute bottom-40 w-full max-w-2xl px-8 transition-all duration-700 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                    <div className="p-8 rounded-3xl bg-[#0d1117]/90 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
-                        <p className="text-[14px] text-slate-200 font-light italic leading-relaxed">{response}</p>
-                    </div>
+                    <div className="p-8 rounded-3xl bg-[#0d1117]/90 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center"><p className="text-[14px] text-slate-200 font-light italic leading-relaxed">{response}</p></div>
                 </div>
                 <div className={`absolute bottom-12 transition-all duration-700 z-30 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
-                <button onClick={toggleMic} className={`w-20 h-20 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_40px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
+                  <button onClick={toggleMic} className={`w-20 h-20 rounded-full border flex items-center justify-center transition-all ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_40px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
-                </button>
+                  </button>
                 </div>
             </main>
 
             <aside className={`w-[320px] p-8 border-l border-white/[0.02] flex flex-col gap-12 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <section>
-                <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Neural Memory</p>
-                <div className="flex flex-wrap gap-2">
-                    {[`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Node: Primary'].map(tag => (
-                    <span key={tag} className="px-3 py-1.5 bg-pink-500/5 border border-pink-500/10 rounded-lg text-[9px] text-pink-400/80">{tag}</span>
-                    ))}
-                </div>
+                  <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Neural Memory</p>
+                  <div className="flex flex-wrap gap-2">{[`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Node: Primary'].map(tag => (<span key={tag} className="px-3 py-1.5 bg-pink-500/5 border border-pink-500/10 rounded-lg text-[9px] text-pink-400/80">{tag}</span>))}</div>
                 </section>
                 <section className="flex-1 min-h-0 flex flex-col">
-                <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">System Logs</p>
-                <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                    {log.map((l, i) => (
-                    <div key={i} className="text-[10px] border-l-2 border-pink-500/20 pl-4 py-1">
-                        <p className="text-slate-500 text-[8px] mb-1 font-mono">{l.time}</p>
-                        <p className="text-slate-300 italic">{l.msg}</p>
-                    </div>
-                    ))}
-                </div>
+                  <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">System Logs</p>
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                      {log.map((l, i) => (<div key={i} className="text-[10px] border-l-2 border-pink-500/20 pl-4 py-1"><p className="text-slate-500 text-[8px] mb-1 font-mono">{l.time}</p><p className="text-slate-300 italic">{l.msg}</p></div>))}
+                  </div>
                 </section>
             </aside>
           </div>
 
-          {/* TAB: MEMORY */}
+          {/* TAB: MEMORY (Majestic Integration) */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto">
-                <h1 className="text-white text-xs tracking-[1em] uppercase mb-20 opacity-50">Memory Archive</h1>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto custom-scrollbar">
+                <h1 className="text-white text-xs tracking-[1em] uppercase mb-20 opacity-50">Neural Archive</h1>
                 <div className="w-full max-w-xl space-y-4">
                   {dbMemories.map((m) => (
-                    <motion.div 
-                      key={m.id} 
-                      drag="x" 
-                      dragConstraints={{ left: -100, right: 0 }}
-                      onDragEnd={(_, info) => info.offset.x < -50 && hideMemory(m.id)}
-                      className="p-6 bg-[#0d1117] border border-white/[0.05] rounded-2xl cursor-grab active:cursor-grabbing flex justify-between items-center group"
-                    >
+                    <motion.div key={m.id} drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={(_, info) => info.offset.x < -50 && hideMemory(m.id)} className="p-6 bg-[#0d1117] border border-white/[0.05] rounded-2xl cursor-grab active:cursor-grabbing flex justify-between items-center">
                       <p className="text-sm text-slate-300 font-light">{m.content}</p>
-                      <span className="text-[8px] uppercase tracking-widest text-slate-600 group-hover:text-pink-500 transition-colors">Swipe to hide</span>
+                      <span className="text-[8px] uppercase tracking-widest text-slate-600">Swipe to hide</span>
                     </motion.div>
                   ))}
-                  {dbMemories.length === 0 && <p className="text-center text-[10px] tracking-widest uppercase opacity-20">No memories stored</p>}
+                  {dbMemories.length === 0 && <p className="text-center text-[10px] tracking-widest uppercase opacity-20">Memory bank empty</p>}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* TAB: SETTINGS (Now Functional) */}
+          {/* TAB: SETTINGS (Functional Plan) */}
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center justify-center p-20">
-                    <div className="w-full max-w-md space-y-12">
-                        <section>
-                            <p className="text-[9px] text-pink-500 uppercase tracking-[0.5em] mb-8">System Identity</p>
-                            <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-widest text-slate-500">AI Designation</label>
-                                    <input value={jarvisName} onChange={(e) => setJarvisName(e.target.value)} className="w-full bg-white/[0.02] border border-white/10 rounded-lg p-4 text-white text-sm outline-none focus:border-pink-500/50 transition-all" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-widest text-slate-500">User Handle</label>
-                                    <input value={userHandle} onChange={(e) => setUserHandle(e.target.value)} className="w-full bg-white/[0.02] border border-white/10 rounded-lg p-4 text-white text-sm outline-none focus:border-pink-500/50 transition-all" />
-                                </div>
-                            </div>
-                        </section>
-                        <button onClick={saveSettings} className="w-full py-4 bg-pink-600 text-white text-[10px] tracking-[0.4em] uppercase rounded-lg hover:bg-pink-500 transition-all">Apply Configuration</button>
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto">
+                <div className="w-full max-w-2xl space-y-16 pb-20">
+                  <section className="bg-[#0d1117] p-8 rounded-3xl border border-white/[0.05]">
+                    <p className="text-[9px] text-pink-500 uppercase tracking-[0.5em] mb-8">User Profile</p>
+                    <div className="flex items-center gap-6">
+                      <img src={user?.imageUrl} className="w-16 h-16 rounded-2xl border border-white/10" alt="User" />
+                      <div>
+                        <h2 className="text-white text-lg font-light">{user?.fullName}</h2>
+                        <p className="text-xs text-slate-500">{user?.primaryEmailAddress?.emailAddress}</p>
+                        <p className="text-[8px] text-slate-600 uppercase mt-2">Member Since: {new Date(user?.createdAt || "").toLocaleDateString()}</p>
+                      </div>
                     </div>
-                </motion.div>
+                  </section>
+                  <section className="space-y-6">
+                    <p className="text-[9px] text-pink-500 uppercase tracking-[0.5em]">Identity</p>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2"><label className="text-[9px] uppercase tracking-widest text-slate-500">AI Name</label><input value={jarvisName} onChange={(e) => setJarvisName(e.target.value)} className="w-full bg-white/[0.02] border border-white/10 rounded-xl p-4 text-white text-xs outline-none" /></div>
+                      <div className="space-y-2"><label className="text-[9px] uppercase tracking-widest text-slate-500">User Handle</label><input value={userHandle} onChange={(e) => setUserHandle(e.target.value)} className="w-full bg-white/[0.02] border border-white/10 rounded-xl p-4 text-white text-xs outline-none" /></div>
+                    </div>
+                    <button onClick={saveSettings} className="w-full py-4 bg-pink-600/10 border border-pink-500/30 text-pink-500 text-[10px] tracking-[0.4em] uppercase rounded-xl">Save Changes</button>
+                  </section>
+                  <section className="bg-[#0d1117] p-8 rounded-3xl border border-white/[0.05]">
+                    <p className="text-[9px] text-slate-500 uppercase tracking-[0.5em] mb-4">Locked Vault</p>
+                    {!showHidden ? (
+                      <input type="text" placeholder="TYPE 'YES' TO UNLOCK" value={unlockInput} onChange={(e) => { if(e.target.value === "YES") setShowHidden(true); }} className="w-full bg-black/40 border border-white/5 rounded-lg p-3 text-[10px] text-white outline-none text-center tracking-widest" />
+                    ) : (
+                      <div className="space-y-2">{hiddenMemories.map(m => (<div key={m.id} className="p-3 border-b border-white/5 text-xs text-slate-400">{m.content}</div>))}</div>
+                    )}
+                  </section>
+                  <section className="bg-red-500/5 p-8 rounded-3xl border border-red-500/10">
+                    <p className="text-[9px] text-red-500 uppercase tracking-[0.5em] mb-4">Neural Purge</p>
+                    {!isDeleting ? (
+                      <button onClick={() => setIsDeleting(true)} className="text-[10px] text-red-400 underline tracking-widest uppercase">Delete entire memory bank</button>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-xs text-red-400">Type "CONFIRM DELETE" to wipe all memories.</p>
+                        <input value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} className="w-full bg-black border border-red-500/20 rounded-xl p-4 text-white text-xs" />
+                        <button onClick={deleteEverything} className="w-full py-3 bg-red-600 text-white text-[9px] tracking-widest uppercase">Execute Wipe</button>
+                      </div>
+                    )}
+                  </section>
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
-
         </div>
       )}
     </main>
