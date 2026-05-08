@@ -42,11 +42,12 @@ export default function JarvisOS() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
 
-  // FETCH ALL DATA
+  // REFRESH DATA FUNCTION
   const refreshData = useCallback(async () => {
     if (!user) return;
     const { data: prof } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (prof) { setJarvisName(prof.jarvis_name || "Jarvis"); setUserHandle(prof.user_handle || "Sir"); }
+    
     const { data: act } = await supabase.from("memories").select("*").eq("user_id", user.id).eq("is_hidden", false).order("created_at", { ascending: false });
     const { data: hid } = await supabase.from("memories").select("*").eq("user_id", user.id).eq("is_hidden", true).order("created_at", { ascending: false });
     if (act) setDbMemories(act);
@@ -55,16 +56,15 @@ export default function JarvisOS() {
 
   useEffect(() => { if (user) refreshData(); }, [user, activeTab, refreshData]);
 
-  const hideMemory = async (id: string) => {
-    await supabase.from("memories").update({ is_hidden: true }).eq("id", id);
-    refreshData();
-    addLog("SYSTEM: Memory moved to locked vault.");
+  const addLog = (msg: string) => {
+    const timeStr = new Date().toLocaleTimeString([], { hour12: false });
+    setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
   };
 
   const saveSettings = async () => {
     if (user) {
       await supabase.from("profiles").upsert({ id: user.id, jarvis_name: jarvisName, user_handle: userHandle });
-      addLog("SYSTEM: Identity sync complete.");
+      addLog("SYSTEM: Identity parameters synchronized.");
       setActiveTab("VOICE");
     }
   };
@@ -73,16 +73,11 @@ export default function JarvisOS() {
     if (deleteConfirm === "CONFIRM DELETE" && user) {
       await supabase.from("memories").delete().eq("user_id", user.id);
       setDeleteConfirm(""); setIsDeleting(false); refreshData();
-      addLog("SYSTEM: Neural wipe successful.");
+      addLog("SYSTEM: Neural bank purged.");
     }
   };
 
-  const addLog = (msg: string) => {
-    const timeStr = new Date().toLocaleTimeString([], { hour12: false });
-    setLog(prev => [{time: timeStr, msg}, ...prev].slice(0, 20));
-  };
-
-  // 2200 PARTICLE ENGINE - UNTOUCHED
+  // 2200 PARTICLE ENGINE - RESTORED EXACTLY
   const particles = useMemo(() => {
     return Array.from({ length: 2200 }, () => ({
       theta: Math.random() * Math.PI * 2,
@@ -116,7 +111,7 @@ export default function JarvisOS() {
         let rgb = "255, 20, 147"; if (i % 5 === 0) rgb = "168, 85, 247"; if (i % 15 === 0) rgb = "255, 255, 255";
         ctx.beginPath(); ctx.arc(x, y, (0.4 + depth * 3.5) * (p.size/2), 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${rgb}, ${0.1 + depth * 0.8})`;
-        if (i % 60 === 0) { ctx.shadowBlur = 15; ctx.shadowColor = `rgb(${rgb})`; }
+        if (i % 60 === 0) { ctx.shadowBlur = 15; ctx.shadowColor = `rgb(${rgb})`; } else { ctx.shadowBlur = 0; }
         ctx.fill();
       });
       requestAnimationFrame(animate);
@@ -133,15 +128,15 @@ export default function JarvisOS() {
     window.speechSynthesis.speak(u);
   }, []);
 
+  // CHAT LOGIC - REPAIRING CONNECTION
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim() || !user) return;
     setState("THINKING");
 
-    // DYNAMIC MEMORY CAPTURE: Listen for anything personal (GF name, hobbies, etc)
-    const personalStrings = ["my", "i am", "name is", "remember", "i like", "i'm", "she", "he"];
-    if (personalStrings.some(s => input.toLowerCase().includes(s))) {
+    // MEMORY DETECTION (GF name, facts, etc)
+    const keywords = ["my", "i am", "name", "remember", "she", "he", "like"];
+    if (keywords.some(k => input.toLowerCase().includes(k))) {
         await supabase.from("memories").insert({ user_id: user.id, content: input, is_hidden: false });
-        addLog("SYSTEM: Neural record stored.");
         refreshData();
     }
 
@@ -152,13 +147,16 @@ export default function JarvisOS() {
         body: JSON.stringify({ message: input, history: historyRef.current, userName: userHandle, jarvisName: jarvisName }),
       });
       const data = await res.json();
-      if (res.ok) {
+      if (data && data.reply) {
         setResponse(data.reply);
         addLog(`${jarvisName.toUpperCase()}: ${data.reply}`);
         historyRef.current = [...historyRef.current, { role: "user", content: input }, { role: "assistant", content: data.reply }].slice(-10);
         speak(data.reply);
       }
-    } catch (e) { setState("IDLE"); }
+    } catch (e) { 
+      setResponse("Connection interrupted. Please try again.");
+      setState("IDLE"); 
+    }
   }, [user, userHandle, jarvisName, speak, refreshData]);
 
   const toggleMic = () => {
@@ -185,13 +183,8 @@ export default function JarvisOS() {
 
   return (
     <main className="fixed inset-0 bg-[#010409] text-[#7d8590] flex flex-col overflow-hidden font-sans">
-      
-      {/* Return Button */}
-      <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-8 py-2 border border-pink-500/30 bg-black/60 backdrop-blur-xl rounded-full text-[9px] tracking-[0.5em] uppercase text-pink-500 transition-all duration-700 ${activeTab !== 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        Return to Core
-      </button>
+      <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-8 py-2 border border-pink-500/30 bg-black/60 backdrop-blur-xl rounded-full text-[9px] tracking-[0.5em] uppercase text-pink-500 transition-all duration-700 ${activeTab !== 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
 
-      {/* Nav Bar */}
       <nav className={`h-16 px-10 flex items-center justify-between border-b border-white/[0.03] bg-[#010409] z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-4">
           <div className="w-6 h-6 border border-pink-500/40 rounded flex items-center justify-center"><div className="w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_#ff1493]" /></div>
@@ -202,10 +195,7 @@ export default function JarvisOS() {
             <button key={t} onClick={() => setActiveTab(t.toUpperCase() as ActiveTab)} className={`${activeTab === t.toUpperCase() ? 'text-pink-500 border-b border-pink-500' : 'hover:text-white'} pb-1 transition-all`}>{t}</button>
           ))}
         </div>
-        <div className="flex items-center gap-6">
-          <SignedIn><UserButton afterSignOutUrl="/" /></SignedIn>
-          <SignedOut><SignInButton mode="modal"><button className="text-[10px] tracking-widest uppercase border border-white/10 px-5 py-2 rounded hover:bg-white/5">Authorize</button></SignInButton></SignedOut>
-        </div>
+        <div className="flex items-center gap-6"><SignedIn><UserButton afterSignOutUrl="/" /></SignedIn><SignedOut><SignInButton mode="modal"><button className="text-[10px] tracking-widest uppercase border border-white/10 px-5 py-2 rounded hover:bg-white/5">Authorize</button></SignInButton></SignedOut></div>
       </nav>
 
       {!isActive ? (
@@ -215,7 +205,6 @@ export default function JarvisOS() {
       ) : (
         <div className="flex-1 relative flex overflow-hidden">
           
-          {/* TAB: VOICE & DASHBOARD (SIDEBARS LOCKED) */}
           <div className={`flex-1 flex transition-all duration-700 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
             <aside className={`w-[320px] p-8 border-r border-white/[0.02] flex flex-col gap-10 bg-[#010409] z-20 transition-all duration-700 ease-in-out ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <p className="text-[9px] text-slate-600 uppercase tracking-[0.4em] mb-6">Hardware Network</p>
@@ -258,25 +247,22 @@ export default function JarvisOS() {
             </aside>
           </div>
 
-          {/* TAB: MEMORY (Majestic Integration) */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto custom-scrollbar">
                 <h1 className="text-white text-xs tracking-[1em] uppercase mb-20 opacity-50">Neural Archive</h1>
                 <div className="w-full max-w-xl space-y-4">
                   {dbMemories.map((m) => (
-                    <motion.div key={m.id} drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={(_, info) => info.offset.x < -50 && hideMemory(m.id)} className="p-6 bg-[#0d1117] border border-white/[0.05] rounded-2xl cursor-grab active:cursor-grabbing flex justify-between items-center">
+                    <motion.div key={m.id} drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={async (_, info) => { if(info.offset.x < -50) { await supabase.from("memories").update({ is_hidden: true }).eq("id", m.id); refreshData(); }}} className="p-6 bg-[#0d1117] border border-white/[0.05] rounded-2xl flex justify-between items-center group">
                       <p className="text-sm text-slate-300 font-light">{m.content}</p>
                       <span className="text-[8px] uppercase tracking-widest text-slate-600">Swipe to hide</span>
                     </motion.div>
                   ))}
-                  {dbMemories.length === 0 && <p className="text-center text-[10px] tracking-widest uppercase opacity-20">Memory bank empty</p>}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* TAB: SETTINGS (Functional Plan) */}
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-20 overflow-y-auto">
@@ -284,11 +270,10 @@ export default function JarvisOS() {
                   <section className="bg-[#0d1117] p-8 rounded-3xl border border-white/[0.05]">
                     <p className="text-[9px] text-pink-500 uppercase tracking-[0.5em] mb-8">User Profile</p>
                     <div className="flex items-center gap-6">
-                      <img src={user?.imageUrl} className="w-16 h-16 rounded-2xl border border-white/10" alt="User" />
+                      <img src={user?.imageUrl} className="w-16 h-16 rounded-2xl" alt="User" />
                       <div>
                         <h2 className="text-white text-lg font-light">{user?.fullName}</h2>
                         <p className="text-xs text-slate-500">{user?.primaryEmailAddress?.emailAddress}</p>
-                        <p className="text-[8px] text-slate-600 uppercase mt-2">Member Since: {new Date(user?.createdAt || "").toLocaleDateString()}</p>
                       </div>
                     </div>
                   </section>
@@ -311,10 +296,10 @@ export default function JarvisOS() {
                   <section className="bg-red-500/5 p-8 rounded-3xl border border-red-500/10">
                     <p className="text-[9px] text-red-500 uppercase tracking-[0.5em] mb-4">Neural Purge</p>
                     {!isDeleting ? (
-                      <button onClick={() => setIsDeleting(true)} className="text-[10px] text-red-400 underline tracking-widest uppercase">Delete entire memory bank</button>
+                      <button onClick={() => setIsDeleting(true)} className="text-[10px] text-red-400 underline tracking-widest uppercase">Wipe memory bank</button>
                     ) : (
                       <div className="space-y-4">
-                        <p className="text-xs text-red-400">Type "CONFIRM DELETE" to wipe all memories.</p>
+                        <p className="text-xs text-red-400">Type "CONFIRM DELETE" to proceed.</p>
                         <input value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} className="w-full bg-black border border-red-500/20 rounded-xl p-4 text-white text-xs" />
                         <button onClick={deleteEverything} className="w-full py-3 bg-red-600 text-white text-[9px] tracking-widest uppercase">Execute Wipe</button>
                       </div>
