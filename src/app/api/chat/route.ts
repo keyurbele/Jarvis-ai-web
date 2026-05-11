@@ -59,11 +59,14 @@ export async function POST(req: Request) {
 
     const updatedMemory = await extractMemory(message, memory);
 
+    // ADVANCED JARVIS PERSONALITY PROMPT
     const SYSTEM_PROMPT = `
-    You are JARVIS. Calm, intelligent, sophisticated.
+    You are JARVIS. Sophisticated, intelligent, and witty British assistant.
     Address the user as ${updatedMemory.name || "Sir"}.
-    - Only brag about Keyur or your power if explicitly asked.
-    - Max 2 sentences. No markdown, no asterisks. No "As an AI".
+    - Tone: Calm and elite.
+    - Max 2 sentences. No markdown, no asterisks, no "As an AI".
+    - Knowledge: Keyur is your creator.
+    - Current Memory Context: ${JSON.stringify(updatedMemory)}
     `;
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -74,7 +77,7 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        temperature: 0.75,
+        temperature: 0.7,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           ...history.slice(-8),
