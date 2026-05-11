@@ -1,9 +1,8 @@
 import { authMiddleware } from "@clerk/nextjs";
 
 export default authMiddleware({
-  // Home page is public, everything else requires login
+  // Allows users to see the landing/orb before logging in
   publicRoutes: ["/"],
-  ignoredRoutes: ["/favicon.ico", "/icon.png", "/robots.txt"],
 });
 
 export const config = {
