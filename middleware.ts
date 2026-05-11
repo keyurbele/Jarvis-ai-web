@@ -1,13 +1,11 @@
 import { authMiddleware } from "@clerk/nextjs";
 
 export default authMiddleware({
-  // Routes that can be accessed while signed out
+  // Home page is public, everything else requires login
   publicRoutes: ["/"],
-  // Routes that can always be accessed, and have no authentication information
-  ignoredRoutes: ["/no-auth-in-here"],
+  ignoredRoutes: ["/favicon.ico", "/icon.png", "/robots.txt"],
 });
 
 export const config = {
-  // Protects all routes, including api/trpc
   matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
 };
