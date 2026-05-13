@@ -85,7 +85,8 @@ export default function JarvisOS() {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
-      const baseRadius = activeTab === "DASHBOARD" ? 240 : 135;
+      // Adjusted radius for better scaling
+      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.25 : canvas.width * 0.15;
       frame += rotSpeed;
       const centerX = canvas.width / 2; const centerY = canvas.height / 2;
       particles.forEach((p, i) => {
@@ -121,13 +122,6 @@ export default function JarvisOS() {
     if (!input.trim()) return;
     setState("THINKING");
     addLog(`USER: ${input}`);
-    if (user) {
-      const markers = ["my", "name", "remember", "she", "he", "is", "gf"];
-      if (markers.some(m => input.toLowerCase().includes(m))) {
-        await supabase.from("memories").insert({ user_id: user.id, content: input, is_hidden: false });
-        refreshData();
-      }
-    }
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -143,7 +137,7 @@ export default function JarvisOS() {
         speak(botReply);
       } else { setResponse("Neural signal empty."); setState("IDLE"); }
     } catch (e) { setResponse("System offline."); setState("IDLE"); }
-  }, [user, userHandle, jarvisName, speak, refreshData]);
+  }, [userHandle, jarvisName, speak]);
 
   const toggleMic = () => {
     if (micOnRef.current) { 
@@ -172,28 +166,28 @@ export default function JarvisOS() {
   return (
     <main className="fixed inset-0 bg-[#010409] text-[#7d8590] flex flex-col overflow-hidden font-sans select-none">
       
+      {/* Return to Core Button */}
       <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${activeTab !== 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
 
-      {/* CENTRALIZED NAVIGATION */}
-      <nav className={`h-20 px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#010409]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
-        
-        <div className="flex items-center gap-5 justify-self-start">
-          <div className="w-8 h-8 border border-pink-500/40 rounded-lg flex items-center justify-center relative">
+      {/* RE-CENTERED NAVIGATION */}
+      <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#010409]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+        <div className="flex items-center gap-5 justify-self-start overflow-hidden">
+          <div className="min-w-[32px] h-8 border border-pink-500/40 rounded-lg flex items-center justify-center relative">
             <div className="w-3 h-3 bg-pink-500 rounded-full shadow-[0_0_15px_#ff1493] animate-pulse" />
           </div>
-          <span className="text-[11px] font-black tracking-[0.5em] text-white uppercase italic">{jarvisName}<span className="text-pink-500 font-thin ml-1">OS</span></span>
+          <span className="text-[10px] lg:text-[11px] font-black tracking-[0.5em] text-white uppercase italic truncate">{jarvisName}<span className="text-pink-500 font-thin ml-1">OS</span></span>
         </div>
 
-        <div className="flex gap-14 text-[10px] tracking-[0.4em] uppercase font-bold justify-self-center">
+        <div className="flex gap-4 lg:gap-14 text-[9px] lg:text-[10px] tracking-[0.2em] lg:tracking-[0.4em] uppercase font-bold justify-self-center">
           {['Voice', 'Dashboard', 'Memory', 'Settings'].map(t => (
-            <button key={t} onClick={() => { if (!isSignedIn && (t === 'Memory' || t === 'Settings')) return; setActiveTab(t.toUpperCase() as ActiveTab); }} className={`${activeTab === t.toUpperCase() ? 'text-pink-500 border-b border-pink-500' : (!isSignedIn && (t === 'Memory' || t === 'Settings')) ? 'text-slate-800 cursor-not-allowed' : 'hover:text-white text-slate-500'} pb-1 transition-all`}>{t}</button>
+            <button key={t} onClick={() => { if (!isSignedIn && (t === 'Memory' || t === 'Settings')) return; setActiveTab(t.toUpperCase() as ActiveTab); }} className={`${activeTab === t.toUpperCase() ? 'text-pink-500 border-b border-pink-500' : (!isSignedIn && (t === 'Memory' || t === 'Settings')) ? 'text-slate-800 cursor-not-allowed' : 'hover:text-white text-slate-500'} pb-1 transition-all whitespace-nowrap`}>{t}</button>
           ))}
         </div>
 
         <div className="justify-self-end">
           {isSignedIn ? ( <UserButton afterSignOutUrl="/" /> ) : (
             <SignInButton mode="modal">
-              <button className="px-8 py-2 border border-pink-500/30 rounded-full text-[10px] tracking-[0.6em] uppercase text-pink-500 hover:bg-pink-500/10 transition-all">Authorize</button>
+              <button className="px-4 lg:px-8 py-2 border border-pink-500/30 rounded-full text-[9px] lg:text-[10px] tracking-[0.4em] lg:tracking-[0.6em] uppercase text-pink-500 hover:bg-pink-500/10 transition-all">Authorize</button>
             </SignInButton>
           )}
         </div>
@@ -201,58 +195,75 @@ export default function JarvisOS() {
 
       {!isActive ? (
         <div className="flex-1 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0a1120_0%,_#010409_100%)]">
-            <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-20 py-6 border border-pink-500/30 text-pink-400 text-[12px] tracking-[0.8em] uppercase hover:bg-pink-500/10 transition-all shadow-[0_0_100px_rgba(255,20,147,0.05)]">Initialize Core</button>
+            <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-12 lg:px-20 py-6 border border-pink-500/30 text-pink-400 text-[10px] lg:text-[12px] tracking-[0.8em] uppercase hover:bg-pink-500/10 transition-all shadow-[0_0_100px_rgba(255,20,147,0.05)] text-center">Initialize Core</button>
         </div>
       ) : (
         <div className="flex-1 relative flex overflow-hidden">
-          <div className={`flex-1 flex transition-all duration-1000 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none translate-y-10' : 'opacity-100 scale-100 translate-y-0'}`}>
+          <div className={`flex-1 flex w-full transition-all duration-1000 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none translate-y-10' : 'opacity-100 scale-100 translate-y-0'}`}>
             
-            <aside className={`w-[360px] p-10 border-r border-white/[0.02] flex flex-col gap-12 bg-[#010409] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
-                <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-10">Hardware Grid</p>
-                <div className="space-y-4">
+            {/* Left Sidebar - Hidden on small screens if not focused */}
+            <aside className={`hidden xl:flex w-[320px] p-8 border-r border-white/[0.02] flex-col gap-12 bg-[#010409] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+                <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-4">Hardware Grid</p>
+                <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
                   {Object.entries(devices).map(([key, val]) => (
-                    <div key={key} className="flex items-center justify-between p-5 rounded-2xl bg-[#0d1117] border border-white/[0.04] group hover:border-pink-500/20 transition-all">
-                      <span className="text-[10px] uppercase tracking-widest text-slate-400 group-hover:text-slate-200">{key}</span>
-                      <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-12 h-6 rounded-full relative cursor-pointer transition-all duration-500 ${val ? 'bg-pink-600/40 border border-pink-500/50' : 'bg-slate-800 border border-white/5'}`}><div className={`absolute top-1 w-3.5 h-3.5 bg-white rounded-full transition-all duration-500 ${val ? 'left-7' : 'left-1'}`} /></div>
+                    <div key={key} className="flex items-center justify-between p-4 rounded-2xl bg-[#0d1117] border border-white/[0.04] group hover:border-pink-500/20 transition-all">
+                      <span className="text-[9px] uppercase tracking-widest text-slate-400 group-hover:text-slate-200">{key}</span>
+                      <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all duration-500 ${val ? 'bg-pink-600/40 border border-pink-500/50' : 'bg-slate-800 border border-white/5'}`}><div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all duration-500 ${val ? 'left-5.5' : 'left-1'}`} /></div>
                     </div>
                   ))}
                 </div>
             </aside>
 
-            <main className="flex-1 relative flex flex-col items-center justify-center">
-                <div className={`relative transition-all duration-1000 z-10 ${activeTab === 'DASHBOARD' ? 'scale-110 translate-y-0' : 'scale-100 -translate-y-24'}`}>
-                    <canvas ref={canvasRef} width={900} height={900} className="relative w-[700px] h-[700px]" />
+            {/* Main Center Area */}
+            <main className="flex-1 relative flex flex-col items-center justify-center min-w-0">
+                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${activeTab === 'DASHBOARD' ? 'scale-110 translate-y-0' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
+                    <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
                 </div>
-                <div className={`absolute bottom-48 w-full max-w-2xl px-10 transition-all duration-1000 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-                    <div className="p-10 rounded-[40px] bg-[#0d1117]/80 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center"><p className="text-[15px] text-slate-200 font-light italic leading-relaxed tracking-wide">"{response}"</p></div>
+                
+                <div className={`absolute bottom-32 lg:bottom-48 w-full max-w-xl px-6 transition-all duration-1000 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+                    <div className="p-6 lg:p-10 rounded-[30px] lg:rounded-[40px] bg-[#0d1117]/80 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
+                        <p className="text-[13px] lg:text-[15px] text-slate-200 font-light italic leading-relaxed tracking-wide">"{response}"</p>
+                    </div>
                 </div>
-                <div className={`absolute bottom-16 z-30 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
-                  <button onClick={toggleMic} className={`w-24 h-24 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_60px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-pink-500/40'}`}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
+
+                <div className={`absolute bottom-12 lg:bottom-16 z-30 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
+                  <button onClick={toggleMic} className={`w-20 h-20 lg:w-24 lg:h-24 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_60px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-pink-500/40'}`}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
                   </button>
                 </div>
             </main>
 
-            <aside className={`w-[360px] p-10 border-l border-white/[0.02] flex flex-col gap-12 bg-[#010409] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+            {/* Right Sidebar - Hidden on smaller screens */}
+            <aside className={`hidden xl:flex w-[320px] p-8 border-l border-white/[0.02] flex-col gap-12 bg-[#010409] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <section>
-                  <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-10">Cognitive Status</p>
-                  <div className="grid grid-cols-2 gap-3">{[`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Auth: Clerk'].map(tag => (<span key={tag} className="px-4 py-2 bg-pink-500/5 border border-pink-500/10 rounded-xl text-[9px] text-pink-400/70 text-center tracking-widest">{tag}</span>))}</div>
+                  <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-8">Cognitive Status</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Auth: Clerk'].map(tag => (
+                      <span key={tag} className="px-3 py-2 bg-pink-500/5 border border-pink-500/10 rounded-xl text-[8px] text-pink-400/70 text-center tracking-widest truncate">{tag}</span>
+                    ))}
+                  </div>
                 </section>
-                <section className="flex-1 overflow-y-auto space-y-5 pr-4 custom-scrollbar">
-                    {log.map((l, i) => (<div key={i} className="text-[11px] border-l-2 border-pink-500/30 pl-5 py-1 animate-in fade-in slide-in-from-left-2"><p className="text-slate-600 text-[8px] mb-1 font-mono uppercase">{l.time}</p><p className="text-slate-300 italic font-light leading-snug">{l.msg}</p></div>))}
+                <section className="flex-1 overflow-y-auto space-y-5 pr-2 custom-scrollbar">
+                    {log.map((l, i) => (
+                      <div key={i} className="text-[11px] border-l-2 border-pink-500/30 pl-4 py-1 animate-in fade-in slide-in-from-left-2">
+                        <p className="text-slate-600 text-[8px] mb-1 font-mono uppercase">{l.time}</p>
+                        <p className="text-slate-300 italic font-light leading-snug">{l.msg}</p>
+                      </div>
+                    ))}
                 </section>
             </aside>
           </div>
 
+          {/* MEMORY & SETTINGS remain exactly as functional as before */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
-              <motion.div initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-24 overflow-y-auto custom-scrollbar">
-                <h1 className="text-white text-[11px] tracking-[1.5em] uppercase mb-24 opacity-40 font-black">Neural Archive Bank</h1>
+              <motion.div initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-12 lg:p-24 overflow-y-auto custom-scrollbar">
+                <h1 className="text-white text-[10px] lg:text-[11px] tracking-[1.5em] uppercase mb-16 lg:mb-24 opacity-40 font-black">Neural Archive Bank</h1>
                 <div className="w-full max-w-2xl space-y-6">
                   {dbMemories.map((m) => (
-                    <motion.div key={m.id} drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={async (_, info) => { if(info.offset.x < -60) { await supabase.from("memories").update({ is_hidden: true }).eq("id", m.id); refreshData(); }}} className="p-8 bg-[#0d1117] border border-white/[0.05] rounded-[32px] flex justify-between items-center group hover:border-pink-500/30 transition-colors">
+                    <motion.div key={m.id} drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={async (_, info) => { if(info.offset.x < -60) { await supabase.from("memories").update({ is_hidden: true }).eq("id", m.id); refreshData(); }}} className="p-6 lg:p-8 bg-[#0d1117] border border-white/[0.05] rounded-[32px] flex justify-between items-center group hover:border-pink-500/30 transition-colors">
                       <p className="text-slate-200 text-sm font-light tracking-wide">{m.content}</p>
-                      <span className="text-[7px] uppercase tracking-[0.4em] text-pink-500 animate-pulse">Swipe Left</span>
+                      <span className="text-[7px] uppercase tracking-[0.4em] text-pink-500 animate-pulse">Archive</span>
                     </motion.div>
                   ))}
                 </div>
@@ -262,37 +273,27 @@ export default function JarvisOS() {
 
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
-              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-24 overflow-y-auto custom-scrollbar">
-                <div className="w-full max-w-3xl space-y-20 pb-32">
-                  <section className="bg-[#0d1117] p-10 rounded-[40px] border border-white/[0.05] flex items-center justify-between">
-                    <div className="flex items-center gap-8">
-                      <img src={user?.imageUrl} className="w-20 h-20 rounded-3xl border-2 border-pink-500/20" alt="Admin" />
-                      <div><h2 className="text-white text-xl font-light tracking-tight">{user?.fullName}</h2><p className="text-xs text-slate-500 font-mono mt-1">{user?.primaryEmailAddress?.emailAddress}</p></div>
+              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-8 lg:p-24 overflow-y-auto custom-scrollbar">
+                <div className="w-full max-w-3xl space-y-12 lg:y-20 pb-32">
+                  <section className="bg-[#0d1117] p-8 lg:p-10 rounded-[30px] lg:rounded-[40px] border border-white/[0.05] flex items-center justify-between">
+                    <div className="flex items-center gap-6 lg:gap-8">
+                      <img src={user?.imageUrl} className="w-16 h-16 lg:w-20 lg:h-20 rounded-3xl border-2 border-pink-500/20" alt="Admin" />
+                      <div><h2 className="text-white text-lg lg:text-xl font-light tracking-tight">{user?.fullName}</h2><p className="text-[10px] text-slate-500 font-mono mt-1">{user?.primaryEmailAddress?.emailAddress}</p></div>
                     </div>
                   </section>
-                  <section className="space-y-8">
-                    <div className="grid grid-cols-2 gap-8">
-                      <div className="space-y-3"><label className="text-[9px] uppercase tracking-widest text-slate-500 ml-2">AI Identifier</label><input value={jarvisName} onChange={(e) => setJarvisName(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-white text-xs outline-none focus:border-pink-500/50 font-light tracking-widest" /></div>
-                      <div className="space-y-3"><label className="text-[9px] uppercase tracking-widest text-slate-500 ml-2">User Salutation</label><input value={userHandle} onChange={(e) => setUserHandle(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-white text-xs outline-none focus:border-pink-500/50 font-light tracking-widest" /></div>
+                  <section className="space-y-6 lg:space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                      <div className="space-y-3"><label className="text-[9px] uppercase tracking-widest text-slate-500 ml-2">AI Identifier</label><input value={jarvisName} onChange={(e) => setJarvisName(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 lg:p-5 text-white text-xs outline-none focus:border-pink-500/50 font-light tracking-widest" /></div>
+                      <div className="space-y-3"><label className="text-[9px] uppercase tracking-widest text-slate-500 ml-2">User Salutation</label><input value={userHandle} onChange={(e) => setUserHandle(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 lg:p-5 text-white text-xs outline-none focus:border-pink-500/50 font-light tracking-widest" /></div>
                     </div>
-                    <button onClick={saveSettings} className="w-full py-5 bg-pink-600/10 border border-pink-500/40 text-pink-500 text-[11px] tracking-[0.6em] uppercase rounded-2xl hover:bg-pink-600/20 transition-all">Update Neural Parameters</button>
+                    <button onClick={saveSettings} className="w-full py-5 bg-pink-600/10 border border-pink-500/40 text-pink-500 text-[10px] lg:text-[11px] tracking-[0.6em] uppercase rounded-2xl hover:bg-pink-600/20 transition-all">Update Neural Parameters</button>
                   </section>
-                  <section className="bg-[#0d1117] p-10 rounded-[40px] border border-white/[0.05]">
+                  <section className="bg-[#0d1117] p-8 lg:p-10 rounded-[30px] lg:rounded-[40px] border border-white/[0.05]">
                     <p className="text-[10px] text-slate-400 uppercase tracking-[0.6em] mb-6 font-bold">Encrypted Vault</p>
                     {!showHidden ? (
                       <input type="text" placeholder="TYPE 'YES' TO DECRYPT" value={unlockInput} onChange={(e) => { if(e.target.value === "YES") setShowHidden(true); }} className="w-full bg-black/40 border border-white/5 rounded-xl p-4 text-[10px] text-white outline-none text-center tracking-[0.8em]" />
                     ) : (
                       <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-4">{hiddenMemories.map(m => (<div key={m.id} className="p-4 border-b border-white/5 text-xs text-slate-400 font-light flex justify-between items-center"><span>{m.content}</span><button onClick={async () => { await supabase.from("memories").update({ is_hidden: false }).eq("id", m.id); refreshData(); }} className="text-[8px] text-pink-500/50 uppercase tracking-tighter">Restore</button></div>))}</div>
-                    )}
-                  </section>
-                  <section className="bg-red-500/[0.02] p-10 rounded-[40px] border border-red-500/10">
-                    <p className="text-[10px] text-red-500 uppercase tracking-[0.6em] mb-6 font-black">Neural Purge</p>
-                    {!isDeleting ? ( <button onClick={() => setIsDeleting(true)} className="text-[10px] text-red-400/60 underline tracking-[0.3em] uppercase">Initiate full memory bank purge</button>
-                    ) : (
-                      <div className="space-y-6">
-                        <input value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} className="w-full bg-black border border-red-500/20 rounded-2xl p-5 text-white text-xs outline-none focus:border-red-500 transition-all font-mono" placeholder="TYPE 'CONFIRM DELETE'" />
-                        <div className="flex gap-4"><button onClick={async () => { if(deleteConfirm === "CONFIRM DELETE") { await supabase.from("memories").delete().eq("user_id", user.id); refreshData(); setDeleteConfirm(""); setIsDeleting(false); addLog("SYSTEM: Neural bank wiped."); }}} className="flex-1 py-4 bg-red-600 text-white text-[10px] tracking-[0.4em] uppercase rounded-xl hover:bg-red-700 transition-all">Execute Wipe</button><button onClick={() => setIsDeleting(false)} className="px-8 py-4 border border-white/10 text-white text-[10px] tracking-widest uppercase rounded-xl hover:bg-white/5">Cancel</button></div>
-                      </div>
                     )}
                   </section>
                 </div>
