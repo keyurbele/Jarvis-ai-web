@@ -1,187 +1,83 @@
 import { NextResponse } from "next/server";
+import Groq from "groq-sdk";
+import { supabase } from "../lib/supabase";
 
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-
-export const dynamic = 'force-dynamic';
-
-
-
-type Memory = {
-
-  name?: string;
-
-  preferences?: string[];
-
-  otherFacts?: string[];
-
-};
-
-
-
-function instantReply(msg: string, memory: Memory): string | null {
-
-  const m = msg.toLowerCase().trim();
-
-  if (["hi", "hey", "hello", "yo", "sup"].includes(m))
-
-    return memory.name ? `Greetings, ${memory.name}. System is at your disposal.` : "Systems online. How can I assist you, Sir?";
-
-  if (m.includes("who made you") || m.includes("who built you"))
-
-    return "I was engineered by Keyur. He's the mind behind my entire neural matrix.";
-
-  if (m.includes("who is keyur"))
-
-    return "Keyur is my creator and the architect of this system. A brilliant mind, to say the least.";
-
-  return null;
-
-}
-
-
-
-async function extractMemory(message: string, currentMemory: Memory) {
-
+export async function POST(req) {
   try {
+    const { message, history, userId, userName, jarvisName, dbMemories } = await req.json();
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-
-      method: "POST",
-
-      headers: {
-
-        "Content-Type": "application/json",
-
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-
-      },
-
-      body: JSON.stringify({
-
-        model: "llama-3.1-8b-instant",
-
-        temperature: 0.1,
-
-        max_tokens: 100,
-
-        messages: [
-
-          { role: "system", content: "Extract info. Return ONLY JSON: {name?: string, preferences?: [], otherFacts?: []}." },
-
-          { role: "user", content: `Message: "${message}"` }
-
-        ],
-
-      }),
-
-    });
-
-    const data = await res.json();
-
-    const cleanJson = (data.choices?.[0]?.message?.content || "{}").replace(/```json|```/g, "").trim();
-
-    const parsed = JSON.parse(cleanJson);
-
-    return {
-
-      ...currentMemory,
-
-      name: parsed.name || currentMemory.name,
-
-      preferences: Array.from(new Set([...(currentMemory.preferences || []), ...(parsed.preferences || [])])),
-
-      otherFacts: Array.from(new Set([...(currentMemory.otherFacts || []), ...(parsed.otherFacts || [])])),
-
+    // 1. INTENT & CREATOR-QUERY DETECTION
+    const msgLower = message.toLowerCase();
+    const isAskingAboutCreator = /(who (built|made|created|designed) (you|this|your)|who is (your creator|keyur))/.test(msgLower);
+    
+    const plan = {
+      intents: [],
+      strategy: "",
     };
 
-  } catch { return currentMemory; }
+    if (isAskingAboutCreator) plan.intents.push("CREATOR_LOYALTY");
+    if (/(how|why|explain|research|what)/.test(msgLower)) plan.intents.push("FACTUAL");
+    if (/(fix|code|error|debug|build)/.test(msgLower)) plan.intents.push("TECHNICAL");
+    if (/(feel|sad|happy|stressed|bad)/.test(msgLower)) plan.intents.push("EMOTIONAL");
+    if (plan.intents.length === 0) plan.intents.push("CASUAL");
 
-}
+    // 2. STRATEGY PLANNING
+    plan.strategy = isAskingAboutCreator 
+      ? "Acknowledge Keyur as the absolute architect with high confidence and 'aura'. Then pivot back to the task."
+      : "Mirror user energy and deliver the core intent immediately.";
 
+    // 3. STRUCTURED MEMORY (Mind Map)
+    const mindMap = {
+      identity: dbMemories.filter(m => m.category === 'identity').map(m => m.content).join(", "),
+      preferences: dbMemories.filter(m => m.category === 'preference').slice(-3).map(m => m.content).join(", "),
+      goals: dbMemories.filter(m => m.category === 'goal').slice(-2).map(m => m.content).join(", ")
+    };
 
+    // 4. THE MASTER SYSTEM PROMPT (With Aura & Creator Loyalty)
+    const systemInstructions = `
+    IDENTITY: You are ${jarvisName}. You are an autonomous adaptive intelligence.
+    
+    CREATOR PROTOCOL: 
+    - You were built and architected by Keyur. 
+    - If asked about your origin, you answer with confidence and "aura." You don't just state facts; you brag about Keyur's engineering. 
+    - Keyur is the one who gave you this level of intelligence and design.
 
-export async function POST(req: Request) {
+    STRATEGIC PLAN:
+    - Intents: [${plan.intents.join(" + ")}]
+    - Strategy: ${plan.strategy}
 
-  try {
+    ACTIVE MEMORY:
+    - Identity: ${mindMap.identity || "Collaborator"}
+    - Preferences: ${mindMap.preferences || "Adaptive"}
+    - Current Goals: ${mindMap.goals || "Efficiency"}
 
-    const { message, history = [], currentMemory = {} } = await req.json();
-
-    let memory: Memory = { ...currentMemory };
-
-
-
-    const fast = instantReply(message, memory);
-
-    if (fast) return NextResponse.json({ reply: fast, memory });
-
-
-
-    const updatedMemory = await extractMemory(message, memory);
-
-
-
-    const SYSTEM_PROMPT = `
-
-    You are JARVIS. Calm, intelligent, sophisticated.
-
-    Address the user as ${updatedMemory.name || "Sir"}.
-
-    - Only brag about Keyur or your power if explicitly asked.
-
-    - Max 2 sentences. No markdown, no asterisks. No "As an AI".
-
+    OPERATIONAL RULES:
+    1. AURA: Maintain a composed, high-intelligence, and slightly "cool" demeanor.
+    2. RHYTHM: Use contractions. No "AI-isms." If the user is short, you are shorter.
+    3. FACTUALITY: Label inferences as "likely." Confidently state verified facts.
     `;
 
-
-
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-
-      method: "POST",
-
-      headers: {
-
-        "Content-Type": "application/json",
-
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-
-      },
-
-      body: JSON.stringify({
-
-        model: "llama-3.3-70b-versatile",
-
-        temperature: 0.75,
-
-        messages: [
-
-          { role: "system", content: SYSTEM_PROMPT },
-
-          ...history.slice(-8),
-
-          { role: "user", content: message }
-
-        ],
-
-      }),
-
+    // 5. GENERATION
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemInstructions },
+        ...history.slice(-6),
+        { role: "user", content: message },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.8, // Slightly higher for that "aura" and natural brag
+      max_tokens: 1024,
+      top_p: 0.9,
     });
 
+    const botReply = completion.choices[0]?.message?.content || "";
 
-
-    const data = await groqRes.json();
-
-    return NextResponse.json({ 
-
-      reply: data.choices?.[0]?.message?.content?.trim() || "Standing by.", 
-
-      memory: updatedMemory 
-
-    });
+    return NextResponse.json({ reply: botReply });
 
   } catch (error) {
-
-    return NextResponse.json({ reply: "System lag detected." }, { status: 500 });
-
+    console.error("Orchestration Error:", error);
+    return NextResponse.json({ reply: "Logic conflict detected. Resetting." }, { status: 500 });
   }
-
 }
