@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignInButton, useUser } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2 } from "lucide-react"; // Added for the Verified Icon
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
@@ -16,6 +17,9 @@ export default function JarvisOS() {
   const [response, setResponse] = useState("System online. Awaiting your command.");
   const [log, setLog] = useState<{time: string, msg: string}[]>([]);
   const [mounted, setMounted] = useState(false);
+  
+  // NEW: Search Identity State
+  const [showKeyurProfile, setShowKeyurProfile] = useState(false);
   
   const [dbMemories, setDbMemories] = useState<any[]>([]);
   const [hiddenMemories, setHiddenMemories] = useState<any[]>([]);
@@ -85,7 +89,6 @@ export default function JarvisOS() {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
-      // Adjusted radius for better scaling
       const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.25 : canvas.width * 0.15;
       frame += rotSpeed;
       const centerX = canvas.width / 2; const centerY = canvas.height / 2;
@@ -120,6 +123,14 @@ export default function JarvisOS() {
 
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
+
+    // NEW: Trigger Identity Profile if searching for Keyur
+    if (input.toLowerCase().includes("keyur")) {
+      setShowKeyurProfile(true);
+    } else {
+      setShowKeyurProfile(false);
+    }
+
     setState("THINKING");
     addLog(`USER: ${input}`);
     try {
@@ -164,13 +175,14 @@ export default function JarvisOS() {
   if (!mounted || !isLoaded) return null;
 
   return (
-    <main className="fixed inset-0 bg-[#010409] text-[#7d8590] flex flex-col overflow-hidden font-sans select-none">
+    // UPGRADE: Swapped #010409 for #0d1117 (Off-Black) per research to reduce eye strain
+    <main className="fixed inset-0 bg-[#0d1117] text-[#7d8590] flex flex-col overflow-hidden font-sans select-none">
       
       {/* Return to Core Button */}
       <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${activeTab !== 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
 
       {/* RE-CENTERED NAVIGATION */}
-      <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#010409]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+      <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#0d1117]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-5 justify-self-start overflow-hidden">
           <div className="min-w-[32px] h-8 border border-pink-500/40 rounded-lg flex items-center justify-center relative">
             <div className="w-3 h-3 bg-pink-500 rounded-full shadow-[0_0_15px_#ff1493] animate-pulse" />
@@ -194,15 +206,15 @@ export default function JarvisOS() {
       </nav>
 
       {!isActive ? (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0a1120_0%,_#010409_100%)]">
+        <div className="flex-1 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#0a1120_0%,_#0d1117_100%)]">
             <button onClick={() => { setIsActive(true); speak("System initialized."); }} className="px-12 lg:px-20 py-6 border border-pink-500/30 text-pink-400 text-[10px] lg:text-[12px] tracking-[0.8em] uppercase hover:bg-pink-500/10 transition-all shadow-[0_0_100px_rgba(255,20,147,0.05)] text-center">Initialize Core</button>
         </div>
       ) : (
         <div className="flex-1 relative flex overflow-hidden">
           <div className={`flex-1 flex w-full transition-all duration-1000 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none translate-y-10' : 'opacity-100 scale-100 translate-y-0'}`}>
             
-            {/* Left Sidebar - Hidden on small screens if not focused */}
-            <aside className={`hidden xl:flex w-[320px] p-8 border-r border-white/[0.02] flex-col gap-12 bg-[#010409] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+            {/* Left Sidebar - Hardware Grid */}
+            <aside className={`hidden xl:flex w-[320px] p-8 border-r border-white/[0.02] flex-col gap-12 bg-[#0d1117] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-4">Hardware Grid</p>
                 <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
                   {Object.entries(devices).map(([key, val]) => (
@@ -216,6 +228,33 @@ export default function JarvisOS() {
 
             {/* Main Center Area */}
             <main className="flex-1 relative flex flex-col items-center justify-center min-w-0">
+                
+                {/* NEW: KEYUR IDENTITY CARD (Cristiano Ronaldo Style) */}
+                <AnimatePresence>
+                  {showKeyurProfile && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                      className="absolute top-10 lg:top-20 z-[60] w-full max-w-sm flex items-center gap-5 bg-white/[0.03] border border-pink-500/30 p-5 rounded-3xl backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+                    >
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#ff1493] to-[#a855f7] flex items-center justify-center shadow-lg shadow-pink-500/20">
+                          <span className="text-white font-black text-2xl uppercase">K</span>
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 bg-[#0d1117] rounded-full p-0.5">
+                          <CheckCircle2 size={20} className="text-[#ff1493] fill-[#ff1493]/20" />
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-white font-bold text-xl tracking-tight">Keyur</h2>
+                          <span className="text-[9px] px-2 py-0.5 rounded-full border border-pink-500/40 text-pink-500 font-black tracking-widest uppercase italic">Architect</span>
+                        </div>
+                        <p className="text-slate-400 text-xs font-medium">Lead Engineer of JarvisOS Systems</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${activeTab === 'DASHBOARD' ? 'scale-110 translate-y-0' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
                     <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
                 </div>
@@ -233,8 +272,8 @@ export default function JarvisOS() {
                 </div>
             </main>
 
-            {/* Right Sidebar - Hidden on smaller screens */}
-            <aside className={`hidden xl:flex w-[320px] p-8 border-l border-white/[0.02] flex-col gap-12 bg-[#010409] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+            {/* Right Sidebar - Cognitive Status */}
+            <aside className={`hidden xl:flex w-[320px] p-8 border-l border-white/[0.02] flex-col gap-12 bg-[#0d1117] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
                 <section>
                   <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-8">Cognitive Status</p>
                   <div className="grid grid-cols-2 gap-3">
@@ -254,10 +293,10 @@ export default function JarvisOS() {
             </aside>
           </div>
 
-          {/* MEMORY & SETTINGS remain exactly as functional as before */}
+          {/* MEMORY PANEL */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
-              <motion.div initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-12 lg:p-24 overflow-y-auto custom-scrollbar">
+              <motion.div initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="absolute inset-0 bg-[#0d1117] z-[60] flex flex-col items-center p-12 lg:p-24 overflow-y-auto custom-scrollbar">
                 <h1 className="text-white text-[10px] lg:text-[11px] tracking-[1.5em] uppercase mb-16 lg:mb-24 opacity-40 font-black">Neural Archive Bank</h1>
                 <div className="w-full max-w-2xl space-y-6">
                   {dbMemories.map((m) => (
@@ -271,9 +310,10 @@ export default function JarvisOS() {
             )}
           </AnimatePresence>
 
+          {/* SETTINGS PANEL */}
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
-              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="absolute inset-0 bg-[#010409] z-[60] flex flex-col items-center p-8 lg:p-24 overflow-y-auto custom-scrollbar">
+              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="absolute inset-0 bg-[#0d1117] z-[60] flex flex-col items-center p-8 lg:p-24 overflow-y-auto custom-scrollbar">
                 <div className="w-full max-w-3xl space-y-12 lg:y-20 pb-32">
                   <section className="bg-[#0d1117] p-8 lg:p-10 rounded-[30px] lg:rounded-[40px] border border-white/[0.05] flex items-center justify-between">
                     <div className="flex items-center gap-6 lg:gap-8">
@@ -307,6 +347,9 @@ export default function JarvisOS() {
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.1); border-radius: 10px; }
       `}</style>
+
+      {/* FOOTER: Research-compliant subtle text */}
+      <footer className="fixed bottom-6 right-8 text-[8px] tracking-[0.4em] uppercase text-slate-700">Verified Identity: Secured by Keyur</footer>
     </main>
   );
 }
