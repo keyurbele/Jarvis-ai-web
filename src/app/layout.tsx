@@ -7,53 +7,47 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: "Jarvis AI | Neural Voice Assistant by Keyur",
-  description: "A high-performance, voice-reactive AI assistant with long-term memory and local system control.",
-  keywords: ["Jarvis AI", "Voice Assistant", "AI Memory", "Next.js AI", "Keyur Jarvis"],
+  description: "A high-performance, voice-reactive AI assistant engineered by Keyur.",
+  keywords: ["Jarvis AI", "Keyur", "Keyur Architect", "Voice Assistant", "AI Memory"],
   authors: [{ name: "Keyur" }],
   metadataBase: new URL('https://jarvis-ai-web-two.vercel.app'),
   verification: {
     google: "Gr3vdruMiT3JD3tOHAHQv6ZZU1zLMm3rElfjIeUKSZY", 
   },
-  icons: {
-    icon: '/favicon.ico',
-    shortcut: '/icon.png',
-    apple: '/apple-touch-icon.png',
-  },
   openGraph: {
     title: "Jarvis AI - Personalized Neural Assistant",
-    description: "Experience a true voice-controlled AI with persistent memory and hardware integration.",
+    description: "Experience a true voice-controlled AI with persistent memory, architected by Keyur.",
     url: "https://jarvis-ai-web-two.vercel.app", 
     siteName: "Jarvis AI",
-    images: [
-      {
-        url: '/icon.png',
-        width: 512,
-        height: 512,
-      },
-    ],
+    images: [{ url: '/icon.png', width: 512, height: 512 }],
     locale: "en_US",
     type: "website",
   },
-  twitter: {
-    card: "summary_large_image",
-    title: "Jarvis AI",
-    description: "The closest thing to a real-life Jarvis assistant.",
-    images: ["/icon.png"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // HIDDEN SCHEMA: This is what triggers the "Cristiano Ronaldo" style card on Google
+  const personSchema = {
+    "@context": "https://schema.org/",
+    "@type": "Person",
+    "name": "Keyur",
+    "jobTitle": "Lead Architect & Engineer",
+    "description": "Founder and lead architect of the JarvisOS neural matrix.",
+    "url": "https://jarvis-ai-web-two.vercel.app",
+    "sameAs": [
+      "https://github.com/keyurbele", // Ensure your GitHub bio matches this!
+    ]
+  };
+
   return (
     <ClerkProvider>
       <html lang="en">
+        <head>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+          />
+        </head>
         <body className={inter.className}>
           {children}
         </body>
