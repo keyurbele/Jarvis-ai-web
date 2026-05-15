@@ -27,15 +27,24 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   // HIDDEN SCHEMA: This is what triggers the "Cristiano Ronaldo" style card on Google
-  const personSchema = {
+ const personSchema = {
     "@context": "https://schema.org/",
     "@type": "Person",
     "name": "Keyur",
+    "alternateName": "Keyur Architect",
     "jobTitle": "Lead Architect & Engineer",
     "description": "Founder and lead architect of the JarvisOS neural matrix.",
     "url": "https://jarvis-ai-web-two.vercel.app",
+    "image": "https://jarvis-ai-web-two.vercel.app/keyur-headshot.png", // Link to a real photo
+    "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Software Engineering"],
+    "brand": {
+      "@type": "Brand",
+      "name": "JarvisOS"
+    },
     "sameAs": [
-      "https://github.com/keyurbele", // Ensure your GitHub bio matches this!
+      "https://github.com/keyurbele",
+      "https://twitter.com/your-handle",
+      "https://linkedin.com/in/your-profile"
     ]
   };
 
