@@ -27,25 +27,27 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
 const personSchema = {
-    "@context": "https://schema.org/",
-    "@type": "Person",
-    "name": "Keyur",
-    "alternateName": "Keyur Architect",
-    "jobTitle": "Lead Architect & Founder", // Updated to your cool title
-    "description": "Lead Architect and Founder of the JarvisOS neural ecosystem.",
-    "url": "https://jarvis-ai-web-two.vercel.app",
-    "image": "https://jarvis-ai-web-two.vercel.app/keyur-headshot.png", 
-    "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Systems Architecture"],
-    "brand": {
-      "@type": "Brand",
-      "name": "JarvisOS"
-    },
-    "sameAs": [
-      "https://github.com/keyurbele",
-      "https://linkedin.com/in/keyur-bele", // Fixed space/comma error
-      "https://www.wikidata.org/wiki/Q139800407" // Your QID linked!
-    ]
-  };
+  "@context": "https://schema.org/",
+  "@type": "Person",
+  "name": "Keyur",
+  "alternateName": "Keyur Architect",
+  "jobTitle": "Lead Architect & Founder",
+  "description": "Lead Architect and Founder of the JarvisOS neural ecosystem.",
+  "url": "https://jarvis-ai-web-two.vercel.app",
+  // Use your project icon instead of a face
+  "image": "https://jarvis-ai-web-two.vercel.app/icon.png", 
+  "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Systems Architecture"],
+  "brand": {
+    "@type": "Brand",
+    "name": "JarvisOS",
+    "logo": "https://jarvis-ai-web-two.vercel.app/icon.png"
+  },
+  "sameAs": [
+    "https://github.com/keyurbele",
+    "https://linkedin.com/in/keyur-bele",
+    "https://www.wikidata.org/wiki/Q139800407"
+  ]
+};
 
   return (
     <ClerkProvider>
