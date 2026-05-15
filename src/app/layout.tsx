@@ -43,8 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     },
     "sameAs": [
       "https://github.com/keyurbele",
-      "https://twitter.com/your-handle",
-      "https://linkedin.com/in/your-profile"
+      "https://linkedin.com/in/Keyur Bele"
       "https://www.wikidata.org/wiki/Q139800407"
     ]
   };
