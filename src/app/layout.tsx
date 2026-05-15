@@ -26,25 +26,24 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // HIDDEN SCHEMA: This is what triggers the "Cristiano Ronaldo" style card on Google
- const personSchema = {
+const personSchema = {
     "@context": "https://schema.org/",
     "@type": "Person",
     "name": "Keyur",
     "alternateName": "Keyur Architect",
-    "jobTitle": "Lead Architect & Engineer",
+    "jobTitle": "Lead Architect & Founder", // Updated to your cool title
     "description": "Lead Architect and Founder of the JarvisOS neural ecosystem.",
     "url": "https://jarvis-ai-web-two.vercel.app",
-    "image": "https://jarvis-ai-web-two.vercel.app/keyur-headshot.png", // Link to a real photo
-    "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Software Engineering"],
+    "image": "https://jarvis-ai-web-two.vercel.app/keyur-headshot.png", 
+    "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Systems Architecture"],
     "brand": {
       "@type": "Brand",
       "name": "JarvisOS"
     },
     "sameAs": [
       "https://github.com/keyurbele",
-      "https://linkedin.com/in/Keyur Bele"
-      "https://www.wikidata.org/wiki/Q139800407"
+      "https://linkedin.com/in/keyur-bele", // Fixed space/comma error
+      "https://www.wikidata.org/wiki/Q139800407" // Your QID linked!
     ]
   };
 
