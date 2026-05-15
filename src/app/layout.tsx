@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     "name": "Keyur",
     "alternateName": "Keyur Architect",
     "jobTitle": "Lead Architect & Engineer",
-    "description": "Founder and lead architect of the JarvisOS neural matrix.",
+    "description": "Lead Architect and Founder of the JarvisOS neural ecosystem.",
     "url": "https://jarvis-ai-web-two.vercel.app",
     "image": "https://jarvis-ai-web-two.vercel.app/keyur-headshot.png", // Link to a real photo
     "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Software Engineering"],
@@ -45,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       "https://github.com/keyurbele",
       "https://twitter.com/your-handle",
       "https://linkedin.com/in/your-profile"
+      "https://www.wikidata.org/wiki/Q139800407"
     ]
   };
 
