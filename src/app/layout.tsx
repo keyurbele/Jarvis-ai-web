@@ -32,10 +32,10 @@ const personSchema = {
   "name": "Keyur",
   "alternateName": "Keyur Architect",
   "jobTitle": "Lead Architect & Founder",
-  "description": "Lead Architect and Founder of the JarvisOS neural ecosystem.",
+  // This is your "Brief Description" - it defines your identity for Google
+  "description": "Lead Architect and Founder of the JarvisOS neural ecosystem, specializing in voice-reactive AI systems and persistent memory architecture.",
   "url": "https://jarvis-ai-web-two.vercel.app",
-  // Use your project icon instead of a face
-  "image": "https://jarvis-ai-web-two.vercel.app/icon.png", 
+  "image": "https://jarvis-ai-web-two.vercel.app/icon.png", // Uses your app icon since you don't want a photo
   "knowsAbout": ["Artificial Intelligence", "Neural Networks", "Systems Architecture"],
   "brand": {
     "@type": "Brand",
