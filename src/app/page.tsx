@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignInButton, useUser } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2 } from "lucide-react"; // Added for the Verified Icon
+import { CheckCircle2, Send } from "lucide-react"; // Added Send Icon
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
@@ -30,6 +30,11 @@ export default function JarvisOS() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // NEW: Dedicated Text Chat States
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const [devices, setDevices] = useState<Record<string, boolean>>({
     "Living Rm Lights": true, "Bedroom Fan": true, "Front Door Lock": false,
     "Main AC Unit": false, "Audio Speaker": true, "Kitchen Lights": false, "Garage Door": false
@@ -42,6 +47,13 @@ export default function JarvisOS() {
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => { micOnRef.current = micOn; }, [micOn]);
+
+  // Auto-scroll chat window when new responses stream in
+  useEffect(() => {
+    if (activeTab === "DASHBOARD") {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, activeTab]);
 
   const refreshData = useCallback(async () => {
     if (!user) return;
@@ -89,7 +101,10 @@ export default function JarvisOS() {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
-      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.25 : canvas.width * 0.15;
+      
+      // Adjusted particle radius calculation to look centered even with the chat drawer open
+      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.12 : canvas.width * 0.15;
+      
       frame += rotSpeed;
       const centerX = canvas.width / 2; const centerY = canvas.height / 2;
       particles.forEach((p, i) => {
@@ -124,7 +139,6 @@ export default function JarvisOS() {
   const askJarvis = useCallback(async (input: string) => {
     if (!input.trim()) return;
 
-    // NEW: Trigger Identity Profile if searching for Keyur
     if (input.toLowerCase().includes("keyur")) {
       setShowKeyurProfile(true);
     } else {
@@ -149,6 +163,43 @@ export default function JarvisOS() {
       } else { setResponse("Neural signal empty."); setState("IDLE"); }
     } catch (e) { setResponse("System offline."); setState("IDLE"); }
   }, [userHandle, jarvisName, speak]);
+
+  // NEW: Custom Typing Chat Submission Engine
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || state === "THINKING") return;
+
+    const currentInput = chatInput;
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", content: currentInput }]);
+    setState("THINKING");
+    addLog(`TEXT OVERRIDE: ${currentInput}`);
+
+    if (currentInput.toLowerCase().includes("keyur")) setShowKeyurProfile(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: currentInput, history: historyRef.current, userName: userHandle, jarvisName: jarvisName }),
+      });
+      const data = await res.json();
+      const botReply = data.reply || data.message || (typeof data === 'string' ? data : null);
+      
+      if (botReply) {
+        setChatMessages(prev => [...prev, { role: "assistant", content: botReply }]);
+        setResponse(botReply);
+        addLog(`${jarvisName.toUpperCase()}: ${botReply}`);
+        historyRef.current = [...historyRef.current, { role: "user", content: currentInput }, { role: "assistant", content: botReply }].slice(-12);
+        // Optional: comment out the line below if you don't want Jarvis to talk out loud during typing mode
+        speak(botReply); 
+      }
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: "assistant", content: "Terminal request failed. Core link broken." }]);
+    } finally {
+      setState("IDLE");
+    }
+  };
 
   const toggleMic = () => {
     if (micOnRef.current) { 
@@ -175,7 +226,6 @@ export default function JarvisOS() {
   if (!mounted || !isLoaded) return null;
 
   return (
-    // UPGRADE: Swapped #010409 for #0d1117 (Off-Black) per research to reduce eye strain
     <main className="fixed inset-0 bg-[#0d1117] text-[#7d8590] flex flex-col overflow-hidden font-sans select-none">
       
       {/* Return to Core Button */}
@@ -229,7 +279,7 @@ export default function JarvisOS() {
             {/* Main Center Area */}
             <main className="flex-1 relative flex flex-col items-center justify-center min-w-0">
                 
-                {/* NEW: KEYUR IDENTITY CARD (Cristiano Ronaldo Style) */}
+                {/* KEYUR IDENTITY CARD */}
                 <AnimatePresence>
                   {showKeyurProfile && (
                     <motion.div 
@@ -255,21 +305,66 @@ export default function JarvisOS() {
                   )}
                 </AnimatePresence>
 
-                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${activeTab === 'DASHBOARD' ? 'scale-110 translate-y-0' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
+                {/* Particle Canvas Core Orb */}
+                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${activeTab === 'DASHBOARD' ? 'scale-75 -translate-y-24 lg:-translate-y-32 opacity-40' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
                     <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
                 </div>
                 
-                <div className={`absolute bottom-32 lg:bottom-48 w-full max-w-xl px-6 transition-all duration-1000 z-20 ${activeTab === 'VOICE' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-                    <div className="p-6 lg:p-10 rounded-[30px] lg:rounded-[40px] bg-[#0d1117]/80 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
-                        <p className="text-[13px] lg:text-[15px] text-slate-200 font-light italic leading-relaxed tracking-wide">"{response}"</p>
+                {/* DYNAMIC VIEW SWITCHER: VOICE HUB VS DEDICATED CHAT TERMINAL */}
+                {activeTab === "VOICE" ? (
+                  <>
+                    <div className="absolute bottom-32 lg:bottom-48 w-full max-w-xl px-6 transition-all duration-1000 z-20">
+                        <div className="p-6 lg:p-10 rounded-[30px] lg:rounded-[40px] bg-[#0d1117]/80 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
+                            <p className="text-[13px] lg:text-[15px] text-slate-200 font-light italic leading-relaxed tracking-wide">"{response}"</p>
+                        </div>
                     </div>
-                </div>
 
-                <div className={`absolute bottom-12 lg:bottom-16 z-30 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'opacity-0 translate-y-20' : 'opacity-100 translate-y-0'}`}>
-                  <button onClick={toggleMic} className={`w-20 h-20 lg:w-24 lg:h-24 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_60px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-pink-500/40'}`}>
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
-                  </button>
-                </div>
+                    <div className="absolute bottom-12 lg:bottom-16 z-30 transition-all duration-1000">
+                      <button onClick={toggleMic} className={`w-20 h-20 lg:w-24 lg:h-24 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${micOn ? 'border-pink-500 bg-pink-500/10 shadow-[0_0_60px_#ff1493]' : 'border-white/10 bg-white/5 hover:border-pink-500/40'}`}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micOn ? '#ff1493' : '#475569'} strokeWidth="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  /* NEW: Dashboard Injected Secure Typing Chat Terminal */
+                  <div className="absolute inset-0 top-24 flex flex-col max-w-3xl w-full mx-auto px-6 pb-6 z-40 animate-in fade-in duration-500">
+                    {/* Chat Messages Display Box */}
+                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4 custom-scrollbar">
+                      {chatMessages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center opacity-40 space-y-2 mt-20">
+                          <p className="text-[10px] tracking-[0.4em] uppercase text-pink-500 font-bold">Secure Text Workspace</p>
+                          <p className="text-xs font-light max-w-xs italic">Keyboard bridge established. Command input is live.</p>
+                        </div>
+                      ) : (
+                        chatMessages.map((msg, i) => (
+                          <div key={i} className={`flex flex-col p-4 rounded-2xl max-w-[85%] border backdrop-blur-md transition-all ${msg.role === 'user' ? 'bg-pink-500/10 border-pink-500/30 text-zinc-100 ml-auto' : 'bg-black/40 border-white/[0.04] text-slate-300 mr-auto'}`}>
+                            <span className="text-[8px] font-mono tracking-widest uppercase opacity-50 mb-1">{msg.role === 'user' ? userHandle : jarvisName}</span>
+                            <p className="text-xs font-light leading-relaxed whitespace-pre-wrap tracking-wide">{msg.content}</p>
+                          </div>
+                        ))
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+
+                    {/* Fixed Typing Form Tray */}
+                    <form onSubmit={handleChatSubmit} className="flex gap-3 bg-black/60 border border-white/[0.05] p-2 rounded-2xl backdrop-blur-2xl">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder={`Interface via text with ${jarvisName}...`}
+                        className="flex-1 bg-transparent border-none rounded-xl px-4 py-3 text-xs text-zinc-100 placeholder-slate-600 focus:outline-none focus:ring-0 font-light tracking-wide"
+                      />
+                      <button
+                        type="submit"
+                        disabled={state === "THINKING" || !chatInput.trim()}
+                        className="p-3 bg-pink-600/10 hover:bg-pink-600/20 border border-pink-500/30 text-pink-500 rounded-xl disabled:opacity-30 transition-all flex items-center justify-center"
+                      >
+                        <Send size={14} className={state === "THINKING" ? "animate-spin" : ""} />
+                      </button>
+                    </form>
+                  </div>
+                )}
             </main>
 
             {/* Right Sidebar - Cognitive Status */}
@@ -277,7 +372,7 @@ export default function JarvisOS() {
                 <section>
                   <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-8">Cognitive Status</p>
                   <div className="grid grid-cols-2 gap-3">
-                    {[`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Auth: Clerk'].map(tag => (
+                    {`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Auth: Clerk'].map(tag => (
                       <span key={tag} className="px-3 py-2 bg-pink-500/5 border border-pink-500/10 rounded-xl text-[8px] text-pink-400/70 text-center tracking-widest truncate">{tag}</span>
                     ))}
                   </div>
@@ -348,7 +443,7 @@ export default function JarvisOS() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.1); border-radius: 10px; }
       `}</style>
 
-      {/* FOOTER: Research-compliant subtle text */}
+      {/* FOOTER */}
       <footer className="fixed bottom-6 right-8 text-[8px] tracking-[0.4em] uppercase text-slate-700">Verified Identity: Secured by Keyur</footer>
     </main>
   );
