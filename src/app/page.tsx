@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton, SignInButton, useUser } from "@clerk/nextjs";
 import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, Send } from "lucide-react"; // Added Send Icon
+import { CheckCircle2, Send } from "lucide-react"; 
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
 type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
@@ -18,7 +18,7 @@ export default function JarvisOS() {
   const [log, setLog] = useState<{time: string, msg: string}[]>([]);
   const [mounted, setMounted] = useState(false);
   
-  // NEW: Search Identity State
+  // Search Identity State
   const [showKeyurProfile, setShowKeyurProfile] = useState(false);
   
   const [dbMemories, setDbMemories] = useState<any[]>([]);
@@ -30,7 +30,7 @@ export default function JarvisOS() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // NEW: Dedicated Text Chat States
+  // Dedicated Text Chat States
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -102,7 +102,6 @@ export default function JarvisOS() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
       
-      // Adjusted particle radius calculation to look centered even with the chat drawer open
       const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.12 : canvas.width * 0.15;
       
       frame += rotSpeed;
@@ -164,7 +163,6 @@ export default function JarvisOS() {
     } catch (e) { setResponse("System offline."); setState("IDLE"); }
   }, [userHandle, jarvisName, speak]);
 
-  // NEW: Custom Typing Chat Submission Engine
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || state === "THINKING") return;
@@ -191,7 +189,6 @@ export default function JarvisOS() {
         setResponse(botReply);
         addLog(`${jarvisName.toUpperCase()}: ${botReply}`);
         historyRef.current = [...historyRef.current, { role: "user", content: currentInput }, { role: "assistant", content: botReply }].slice(-12);
-        // Optional: comment out the line below if you don't want Jarvis to talk out loud during typing mode
         speak(botReply); 
       }
     } catch (err) {
@@ -231,7 +228,7 @@ export default function JarvisOS() {
       {/* Return to Core Button */}
       <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${activeTab !== 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
 
-      {/* RE-CENTERED NAVIGATION */}
+      {/* NAVIGATION */}
       <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#0d1117]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-5 justify-self-start overflow-hidden">
           <div className="min-w-[32px] h-8 border border-pink-500/40 rounded-lg flex items-center justify-center relative">
@@ -310,7 +307,7 @@ export default function JarvisOS() {
                     <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
                 </div>
                 
-                {/* DYNAMIC VIEW SWITCHER: VOICE HUB VS DEDICATED CHAT TERMINAL */}
+                {/* DYNAMIC VIEW SWITCHER */}
                 {activeTab === "VOICE" ? (
                   <>
                     <div className="absolute bottom-32 lg:bottom-48 w-full max-w-xl px-6 transition-all duration-1000 z-20">
@@ -326,9 +323,8 @@ export default function JarvisOS() {
                     </div>
                   </>
                 ) : (
-                  /* NEW: Dashboard Injected Secure Typing Chat Terminal */
+                  /* Dashboard Secure Typing Chat Terminal */
                   <div className="absolute inset-0 top-24 flex flex-col max-w-3xl w-full mx-auto px-6 pb-6 z-40 animate-in fade-in duration-500">
-                    {/* Chat Messages Display Box */}
                     <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4 custom-scrollbar">
                       {chatMessages.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-40 space-y-2 mt-20">
@@ -346,7 +342,6 @@ export default function JarvisOS() {
                       <div ref={chatEndRef} />
                     </div>
 
-                    {/* Fixed Typing Form Tray */}
                     <form onSubmit={handleChatSubmit} className="flex gap-3 bg-black/60 border border-white/[0.05] p-2 rounded-2xl backdrop-blur-2xl">
                       <input
                         type="text"
@@ -372,7 +367,7 @@ export default function JarvisOS() {
                 <section>
                   <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-8">Cognitive Status</p>
                   <div className="grid grid-cols-2 gap-3">
-                    {`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Auth: Clerk'].map(tag => (
+                    {[`User: ${userHandle}`, 'Access: Admin', `UI: Majestic`, 'Auth: Clerk'].map(tag => (
                       <span key={tag} className="px-3 py-2 bg-pink-500/5 border border-pink-500/10 rounded-xl text-[8px] text-pink-400/70 text-center tracking-widest truncate">{tag}</span>
                     ))}
                   </div>
