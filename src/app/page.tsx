@@ -100,7 +100,8 @@ export default function JarvisOS() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
       
-      const baseRadius = (activeTab === "DASHBOARD" || activeTab === "CHAT") ? canvas.width * 0.12 : canvas.width * 0.15;
+      // Make orb extra big when in Dashboard view, standard size otherwise
+      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.22 : (activeTab === "CHAT" ? canvas.width * 0.12 : canvas.width * 0.15);
       
       frame += rotSpeed;
       const centerX = canvas.width / 2; const centerY = canvas.height / 2;
@@ -223,10 +224,10 @@ export default function JarvisOS() {
     <main className="fixed inset-0 bg-[#0d1117] text-[#7d8590] flex flex-col overflow-hidden font-sans select-none">
       
       {/* Return to Core Button */}
-      <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${(activeTab !== 'VOICE' && activeTab !== 'CHAT') ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
+      <button onClick={() => setActiveTab("VOICE")} className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${activeTab !== 'VOICE' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
 
       {/* NAVIGATION */}
-      <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#0d1117]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'CHAT' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+      <nav className="h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#0d1117]/80 backdrop-blur-md z-50">
         <div className="flex items-center gap-5 justify-self-start overflow-hidden">
           <div className="min-w-[32px] h-8 border border-pink-500/40 rounded-lg flex items-center justify-center relative">
             <div className="w-3 h-3 bg-pink-500 rounded-full shadow-[0_0_15px_#ff1493] animate-pulse" />
@@ -300,7 +301,7 @@ export default function JarvisOS() {
                 </AnimatePresence>
 
                 {/* Particle Canvas Core Orb */}
-                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${(activeTab === 'DASHBOARD' || activeTab === 'CHAT') ? 'scale-75 -translate-y-24 lg:-translate-y-32 opacity-40' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
+                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full aspect-square ${activeTab === 'DASHBOARD' ? 'max-w-[85vh] scale-100 translate-y-0 opacity-100' : (activeTab === 'CHAT' ? 'max-w-[90vh] scale-75 -translate-y-24 lg:-translate-y-32 opacity-40' : 'max-w-[90vh] scale-100 -translate-y-12 lg:-translate-y-24')}`}>
                     <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
                 </div>
                 
@@ -319,13 +320,6 @@ export default function JarvisOS() {
                       </button>
                     </div>
                   </>
-                )}
-
-                {activeTab === "DASHBOARD" && (
-                  <div className="absolute inset-0 top-32 flex flex-col items-center justify-center text-center px-6 z-40 animate-in fade-in duration-500">
-                    <p className="text-[11px] tracking-[0.6em] uppercase text-pink-500 font-black mb-3">System Control Grid</p>
-                    <p className="text-xs text-slate-400 font-light max-w-sm italic">Core matrix operational. Use side modules to regulate environment settings.</p>
-                  </div>
                 )}
 
                 {activeTab === "CHAT" && (
