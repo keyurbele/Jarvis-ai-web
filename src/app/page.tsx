@@ -90,7 +90,7 @@ export default function JarvisOS() {
   }, []);
 
   useEffect(() => {
-    if (!canvasRef.current || !isActive) return;
+    if (!canvasRef.current || !isActive || activeTab === "CHAT") return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -100,8 +100,7 @@ export default function JarvisOS() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
       
-      // Make orb extra big when in Dashboard view, standard size otherwise
-      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.22 : (activeTab === "CHAT" ? canvas.width * 0.12 : canvas.width * 0.15);
+      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.22 : canvas.width * 0.15;
       
       frame += rotSpeed;
       const centerX = canvas.width / 2; const centerY = canvas.height / 2;
@@ -300,10 +299,12 @@ export default function JarvisOS() {
                   )}
                 </AnimatePresence>
 
-                {/* Particle Canvas Core Orb */}
-                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full aspect-square ${activeTab === 'DASHBOARD' ? 'max-w-[85vh] scale-100 translate-y-0 opacity-100' : (activeTab === 'CHAT' ? 'max-w-[90vh] scale-75 -translate-y-24 lg:-translate-y-32 opacity-40' : 'max-w-[90vh] scale-100 -translate-y-12 lg:-translate-y-24')}`}>
-                    <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
-                </div>
+                {/* Particle Canvas Core Orb - Rendered only when NOT in chat view */}
+                {activeTab !== "CHAT" && (
+                  <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full aspect-square ${activeTab === 'DASHBOARD' ? 'max-w-[85vh] scale-100 translate-y-0 opacity-100' : 'max-w-[90vh] scale-100 -translate-y-12 lg:-translate-y-24'}`}>
+                      <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
+                  </div>
+                )}
                 
                 {/* DYNAMIC VIEW SWITCHER */}
                 {activeTab === "VOICE" && (
@@ -323,8 +324,8 @@ export default function JarvisOS() {
                 )}
 
                 {activeTab === "CHAT" && (
-                  /* Dedicated Quiet Typing Chat Terminal */
-                  <div className="absolute inset-0 top-12 flex flex-col max-w-3xl w-full mx-auto px-6 pb-6 z-40 animate-in fade-in duration-500">
+                  /* Dedicated Quiet Typing Chat Terminal without background elements */
+                  <div className="absolute inset-0 top-36 flex flex-col max-w-3xl w-full mx-auto px-6 pb-6 z-40 animate-in fade-in duration-500">
                     <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4 custom-scrollbar">
                       {chatMessages.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-40 space-y-2 mt-20">
