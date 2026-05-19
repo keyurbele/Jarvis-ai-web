@@ -187,11 +187,10 @@ export default function JarvisOS() {
         setResponse(botReply);
         addLog(`${jarvisName.toUpperCase()}: ${botReply}`);
         historyRef.current = [...historyRef.current, { role: "user", content: currentInput }, { role: "assistant", content: botReply }].slice(-12);
-        // Explicitly removed speak(botReply) here so text chat stays quiet.
       }
     } catch (err) {
       setChatMessages(prev => [...prev, { role: "assistant", content: "Terminal request failed. Core link broken." }]);
-    } : {
+    } finally {
       setState("IDLE");
     }
   };
