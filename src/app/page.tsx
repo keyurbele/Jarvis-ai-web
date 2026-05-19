@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Send } from "lucide-react"; 
 
 type JarvisState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING";
-type ActiveTab = "VOICE" | "DASHBOARD" | "MEMORY" | "SETTINGS";
+type ActiveTab = "VOICE" | "DASHBOARD" | "CHAT" | "MEMORY" | "SETTINGS";
 
 export default function JarvisOS() {
   const { user, isLoaded, isSignedIn } = useUser();
@@ -27,8 +27,6 @@ export default function JarvisOS() {
   const [userHandle, setUserHandle] = useState("Sir");
   const [showHidden, setShowHidden] = useState(false);
   const [unlockInput, setUnlockInput] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Dedicated Text Chat States
   const [chatInput, setChatInput] = useState("");
@@ -50,7 +48,7 @@ export default function JarvisOS() {
 
   // Auto-scroll chat window when new responses stream in
   useEffect(() => {
-    if (activeTab === "DASHBOARD") {
+    if (activeTab === "CHAT") {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [chatMessages, activeTab]);
@@ -102,7 +100,7 @@ export default function JarvisOS() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const rotSpeed = 0.008; const turbulence = 0.15;
       
-      const baseRadius = activeTab === "DASHBOARD" ? canvas.width * 0.12 : canvas.width * 0.15;
+      const baseRadius = (activeTab === "DASHBOARD" || activeTab === "CHAT") ? canvas.width * 0.12 : canvas.width * 0.15;
       
       frame += rotSpeed;
       const centerX = canvas.width / 2; const centerY = canvas.height / 2;
@@ -189,11 +187,11 @@ export default function JarvisOS() {
         setResponse(botReply);
         addLog(`${jarvisName.toUpperCase()}: ${botReply}`);
         historyRef.current = [...historyRef.current, { role: "user", content: currentInput }, { role: "assistant", content: botReply }].slice(-12);
-        speak(botReply); 
+        // Explicitly removed speak(botReply) here so text chat stays quiet.
       }
     } catch (err) {
       setChatMessages(prev => [...prev, { role: "assistant", content: "Terminal request failed. Core link broken." }]);
-    } finally {
+    } : {
       setState("IDLE");
     }
   };
@@ -226,10 +224,10 @@ export default function JarvisOS() {
     <main className="fixed inset-0 bg-[#0d1117] text-[#7d8590] flex flex-col overflow-hidden font-sans select-none">
       
       {/* Return to Core Button */}
-      <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${activeTab !== 'VOICE' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
+      <button onClick={() => setActiveTab("VOICE")} className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-10 py-2 border border-pink-500/30 bg-black/80 backdrop-blur-2xl rounded-full text-[9px] tracking-[0.6em] uppercase text-pink-500 transition-all duration-1000 ${(activeTab !== 'VOICE' && activeTab !== 'CHAT') ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Return to Core</button>
 
       {/* NAVIGATION */}
-      <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#0d1117]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'DASHBOARD' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+      <nav className={`h-20 px-8 lg:px-12 grid grid-cols-3 items-center border-b border-white/[0.03] bg-[#0d1117]/80 backdrop-blur-md z-50 transition-all duration-700 ${activeTab === 'CHAT' ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex items-center gap-5 justify-self-start overflow-hidden">
           <div className="min-w-[32px] h-8 border border-pink-500/40 rounded-lg flex items-center justify-center relative">
             <div className="w-3 h-3 bg-pink-500 rounded-full shadow-[0_0_15px_#ff1493] animate-pulse" />
@@ -238,8 +236,8 @@ export default function JarvisOS() {
         </div>
 
         <div className="flex gap-4 lg:gap-14 text-[9px] lg:text-[10px] tracking-[0.2em] lg:tracking-[0.4em] uppercase font-bold justify-self-center">
-          {['Voice', 'Dashboard', 'Memory', 'Settings'].map(t => (
-            <button key={t} onClick={() => { if (!isSignedIn && (t === 'Memory' || t === 'Settings')) return; setActiveTab(t.toUpperCase() as ActiveTab); }} className={`${activeTab === t.toUpperCase() ? 'text-pink-500 border-b border-pink-500' : (!isSignedIn && (t === 'Memory' || t === 'Settings')) ? 'text-slate-800 cursor-not-allowed' : 'hover:text-white text-slate-500'} pb-1 transition-all whitespace-nowrap`}>{t}</button>
+          {['Voice', 'Dashboard', 'Chat', 'Memory', 'Settings'].map(t => (
+            <button key={t} onClick={() => { if (!isSignedIn && (t === 'Memory' || t === 'Settings' || t === 'Chat')) return; setActiveTab(t.toUpperCase() as ActiveTab); }} className={`${activeTab === t.toUpperCase() ? 'text-pink-500 border-b border-pink-500' : (!isSignedIn && (t === 'Memory' || t === 'Settings' || t === 'Chat')) ? 'text-slate-800 cursor-not-allowed' : 'hover:text-white text-slate-500'} pb-1 transition-all whitespace-nowrap`}>{t}</button>
           ))}
         </div>
 
@@ -261,7 +259,7 @@ export default function JarvisOS() {
           <div className={`flex-1 flex w-full transition-all duration-1000 ${activeTab === 'MEMORY' || activeTab === 'SETTINGS' ? 'opacity-0 scale-95 pointer-events-none translate-y-10' : 'opacity-100 scale-100 translate-y-0'}`}>
             
             {/* Left Sidebar - Hardware Grid */}
-            <aside className={`hidden xl:flex w-[320px] p-8 border-r border-white/[0.02] flex-col gap-12 bg-[#0d1117] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+            <aside className={`hidden xl:flex w-[320px] p-8 border-r border-white/[0.02] flex-col gap-12 bg-[#0d1117] z-20 transition-all duration-1000 ${(activeTab === 'CHAT' || activeTab === 'DASHBOARD') ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
                 <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-4">Hardware Grid</p>
                 <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
                   {Object.entries(devices).map(([key, val]) => (
@@ -303,12 +301,12 @@ export default function JarvisOS() {
                 </AnimatePresence>
 
                 {/* Particle Canvas Core Orb */}
-                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${activeTab === 'DASHBOARD' ? 'scale-75 -translate-y-24 lg:-translate-y-32 opacity-40' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
+                <div className={`relative transition-all duration-1000 z-10 flex items-center justify-center w-full max-w-[90vh] aspect-square ${(activeTab === 'DASHBOARD' || activeTab === 'CHAT') ? 'scale-75 -translate-y-24 lg:-translate-y-32 opacity-40' : 'scale-100 -translate-y-12 lg:-translate-y-24'}`}>
                     <canvas ref={canvasRef} width={1000} height={1000} className="w-full h-full object-contain" />
                 </div>
                 
                 {/* DYNAMIC VIEW SWITCHER */}
-                {activeTab === "VOICE" ? (
+                {activeTab === "VOICE" && (
                   <>
                     <div className="absolute bottom-32 lg:bottom-48 w-full max-w-xl px-6 transition-all duration-1000 z-20">
                         <div className="p-6 lg:p-10 rounded-[30px] lg:rounded-[40px] bg-[#0d1117]/80 border border-white/[0.08] backdrop-blur-3xl shadow-2xl text-center">
@@ -322,14 +320,23 @@ export default function JarvisOS() {
                       </button>
                     </div>
                   </>
-                ) : (
-                  /* Dashboard Secure Typing Chat Terminal */
-                  <div className="absolute inset-0 top-24 flex flex-col max-w-3xl w-full mx-auto px-6 pb-6 z-40 animate-in fade-in duration-500">
+                )}
+
+                {activeTab === "DASHBOARD" && (
+                  <div className="absolute inset-0 top-32 flex flex-col items-center justify-center text-center px-6 z-40 animate-in fade-in duration-500">
+                    <p className="text-[11px] tracking-[0.6em] uppercase text-pink-500 font-black mb-3">System Control Grid</p>
+                    <p className="text-xs text-slate-400 font-light max-w-sm italic">Core matrix operational. Use side modules to regulate environment settings.</p>
+                  </div>
+                )}
+
+                {activeTab === "CHAT" && (
+                  /* Dedicated Quiet Typing Chat Terminal */
+                  <div className="absolute inset-0 top-12 flex flex-col max-w-3xl w-full mx-auto px-6 pb-6 z-40 animate-in fade-in duration-500">
                     <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4 custom-scrollbar">
                       {chatMessages.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-40 space-y-2 mt-20">
                           <p className="text-[10px] tracking-[0.4em] uppercase text-pink-500 font-bold">Secure Text Workspace</p>
-                          <p className="text-xs font-light max-w-xs italic">Keyboard bridge established. Command input is live.</p>
+                          <p className="text-xs font-light max-w-xs italic">Keyboard bridge established. Command input is live (Silent Mode).</p>
                         </div>
                       ) : (
                         chatMessages.map((msg, i) => (
@@ -363,7 +370,7 @@ export default function JarvisOS() {
             </main>
 
             {/* Right Sidebar - Cognitive Status */}
-            <aside className={`hidden xl:flex w-[320px] p-8 border-l border-white/[0.02] flex-col gap-12 bg-[#0d1117] z-20 transition-all duration-1000 ${activeTab === 'DASHBOARD' ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
+            <aside className={`hidden xl:flex w-[320px] p-8 border-l border-white/[0.02] flex-col gap-12 bg-[#0d1117] z-20 transition-all duration-1000 ${(activeTab === 'CHAT' || activeTab === 'DASHBOARD') ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
                 <section>
                   <p className="text-[10px] text-pink-500/60 uppercase tracking-[0.5em] mb-8">Cognitive Status</p>
                   <div className="grid grid-cols-2 gap-3">
