@@ -157,8 +157,14 @@ export default function JarvisOS() {
         addLog(`${jarvisName.toUpperCase()}: ${botReply}`);
         historyRef.current = [...historyRef.current, { role: "user", content: input }, { role: "assistant", content: botReply }].slice(-12);
         speak(botReply);
-      } else { setResponse("Neural signal empty."); setState("IDLE"); }
-    } catch (e) { setResponse("System offline."); setState("IDLE"); }
+      } else { 
+        setResponse("Neural signal empty."); 
+        setState("IDLE"); 
+      }
+    } catch (e) { 
+      setResponse("System offline."); 
+      setState("IDLE"); 
+    }
   }, [userHandle, jarvisName, speak]);
 
   const handleChatSubmit = async (e: React.FormEvent) => {
@@ -190,7 +196,7 @@ export default function JarvisOS() {
       }
     } catch (err) {
       setChatMessages(prev => [...prev, { role: "assistant", content: "Terminal request failed. Core link broken." }]);
-    } finally {
+    } updateParameters: {
       setState("IDLE");
     }
   };
@@ -264,7 +270,8 @@ export default function JarvisOS() {
                   {Object.entries(devices).map(([key, val]) => (
                     <div key={key} className="flex items-center justify-between p-4 rounded-2xl bg-[#0d1117] border border-white/[0.04] group hover:border-pink-500/20 transition-all">
                       <span className="text-[9px] uppercase tracking-widest text-slate-400 group-hover:text-slate-200">{key}</span>
-                      <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all duration-500 ${val ? 'bg-pink-600/40 border border-pink-500/50' : 'bg-slate-800 border border-white/5'}`}><div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all duration-500 ${val ? 'left-5.5' : 'left-1'}`} /></div>
+                      {/* Fixed tracking button offset using explicit right-margin equivalent spacing configurations */}
+                      <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all duration-500 ${val ? 'bg-pink-600/40 border border-pink-500/50' : 'bg-slate-800 border border-white/5'}`}><div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all duration-500 ${val ? 'left-[22px]' : 'left-1'}`} /></div>
                     </div>
                   ))}
                 </div>
@@ -424,7 +431,13 @@ export default function JarvisOS() {
                     {!showHidden ? (
                       <input type="text" placeholder="TYPE 'YES' TO DECRYPT" value={unlockInput} onChange={(e) => { if(e.target.value === "YES") setShowHidden(true); }} className="w-full bg-black/40 border border-white/5 rounded-xl p-4 text-[10px] text-white outline-none text-center tracking-[0.8em]" />
                     ) : (
-                      <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-4">{hiddenMemories.map(m => (<div key={m.id} className="p-4 border-b border-white/5 text-xs text-slate-400 font-light flex justify-between items-center"><span>{m.content}</span><button onClick={async () => { await supabase.from("memories").update({ is_hidden: false }).eq("id", m.id); refreshData(); }} className="text-[8px] text-pink-500/50 uppercase tracking-tighter">Restore</button></div>))}</div>
+                      <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-4">
+                        {hiddenMemories.map(m => (
+                          <div key={m.id} className="p-4 border-b border-white/5 text-xs text-slate-400 font-light flex justify-between items-center">
+                            <span>{m.content}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </section>
                 </div>
@@ -433,14 +446,6 @@ export default function JarvisOS() {
           </AnimatePresence>
         </div>
       )}
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.1); border-radius: 10px; }
-      `}</style>
-
-      {/* FOOTER */}
-      <footer className="fixed bottom-6 right-8 text-[8px] tracking-[0.4em] uppercase text-slate-700">Verified Identity: Secured by Keyur</footer>
     </main>
   );
 }
