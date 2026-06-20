@@ -196,7 +196,7 @@ export default function JarvisOS() {
       }
     } catch (err) {
       setChatMessages(prev => [...prev, { role: "assistant", content: "Terminal request failed. Core link broken." }]);
-    } updateParameters: {
+    } finally {
       setState("IDLE");
     }
   };
@@ -270,7 +270,6 @@ export default function JarvisOS() {
                   {Object.entries(devices).map(([key, val]) => (
                     <div key={key} className="flex items-center justify-between p-4 rounded-2xl bg-[#0d1117] border border-white/[0.04] group hover:border-pink-500/20 transition-all">
                       <span className="text-[9px] uppercase tracking-widest text-slate-400 group-hover:text-slate-200">{key}</span>
-                      {/* Fixed tracking button offset using explicit right-margin equivalent spacing configurations */}
                       <div onClick={() => setDevices(prev => ({...prev, [key]: !val}))} className={`w-10 h-5 rounded-full relative cursor-pointer transition-all duration-500 ${val ? 'bg-pink-600/40 border border-pink-500/50' : 'bg-slate-800 border border-white/5'}`}><div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all duration-500 ${val ? 'left-[22px]' : 'left-1'}`} /></div>
                     </div>
                   ))}
@@ -391,18 +390,152 @@ export default function JarvisOS() {
             </aside>
           </div>
 
-          {/* MEMORY PANEL */}
+         {/* MEMORY PANEL */}
           <AnimatePresence>
             {activeTab === "MEMORY" && (
-              <motion.div initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="absolute inset-0 bg-[#0d1117] z-[60] flex flex-col items-center p-12 lg:p-24 overflow-y-auto custom-scrollbar">
-                <h1 className="text-white text-[10px] lg:text-[11px] tracking-[1.5em] uppercase mb-16 lg:mb-24 opacity-40 font-black">Neural Archive Bank</h1>
+              <motion.div 
+                initial={{ opacity: 0, scale: 1.1 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0, scale: 1.1 }} 
+                className="absolute inset-0 bg-[#0d1117] z-[60] flex flex-col items-center p-12 lg:p-24 overflow-y-auto custom-scrollbar"
+              >
+                <h1 className="text-white text-[10px] lg:text-[11px] tracking-[1.5em] uppercase mb-8 opacity-40 font-black">Neural Archive Bank</h1>
+                
+                {/* CUSTOM MEMORY INJECTOR */}
+                <div className="w-full max-w-2xl mb-12">
+                  <form 
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const target = e.currentTarget;
+                      const formData = new FormData(target);
+                      const content = formData.get("customMemory") as string;
+                      
+                      if (!content.trim() || !user) return;
+                      
+                      try {
+                        await supabase.from("memories").insert({
+                          user_id: user.id,
+                          content: content.trim(),
+                          is_hidden: false
+                        });
+                        addLog("SYSTEM: Custom background fact injected into core archive.");
+                        target.reset();
+                        refreshData();
+                      } catch (err) {
+                        console.error("Failed to inject memory:", err);
+                      }
+                    }}
+                    className="flex gap-3 bg-black/40 border border-white/[0.05] p-2 rounded-2xl backdrop-blur-2xl"
+                  >
+                    <input
+                      type="text"
+                      name="customMemory"
+                      placeholder="Inject a custom fact Jarvis should remember about you..."
+                      className="flex-1 bg-transparent border-none rounded-xl px-4 py-3 text-xs text-zinc-100 placeholder-slate-600 focus:outline-none focus:ring-0 font-light tracking-wide"
+                    />
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-pink-600/10 hover:bg-pink-600/20 border border-pink-500/30 text-pink-500 rounded-xl transition-all text-[9px] uppercase tracking-widest font-mono"
+                    >
+                      Inject
+                    </button>
+                  </form>
+                </div>
+
+                {/* ARCHIVE VIEW & MANAGEMENT LIST */}
                 <div className="w-full max-w-2xl space-y-6">
-                  {dbMemories.map((m) => (
-                    <motion.div key={m.id} drag="x" dragConstraints={{ left: -100, right: 0 }} onDragEnd={async (_, info) => { if(info.offset.x < -60) { await supabase.from("memories").update({ is_hidden: true }).eq("id", m.id); refreshData(); }}} className="p-6 lg:p-8 bg-[#0d1117] border border-white/[0.05] rounded-[32px] flex justify-between items-center group hover:border-pink-500/30 transition-colors">
-                      <p className="text-slate-200 text-sm font-light tracking-wide">{m.content}</p>
-                      <span className="text-[7px] uppercase tracking-[0.4em] text-pink-500 animate-pulse">Archive</span>
-                    </motion.div>
-                  ))}
+                  {dbMemories.length === 0 ? (
+                    <p className="text-center text-xs italic text-slate-600">No synchronized data records detected.</p>
+                  ) : (
+                    dbMemories.map((m) => {
+                      const [isEditing, setIsEditing] = useState(false);
+                      const [editValue, setEditValue] = useState(m.content);
+
+                      return (
+                        <div 
+                          key={m.id} 
+                          className="p-6 lg:p-8 bg-[#0d1117] border border-white/[0.05] rounded-[32px] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:border-pink-500/30 transition-colors"
+                        >
+                          {isEditing ? (
+                            <div className="flex-1 w-full flex gap-2">
+                              <input 
+                                type="text"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-2 text-xs text-zinc-100 focus:outline-none focus:border-pink-500/50 font-light"
+                              />
+                              <button 
+                                onClick={async () => {
+                                  if (!editValue.trim()) return;
+                                  try {
+                                    await supabase.from("memories").update({ content: editValue.trim() }).eq("id", m.id);
+                                    addLog("SYSTEM: Neural record adjusted.");
+                                    setIsEditing(false);
+                                    refreshData();
+                                  } catch (err) {
+                                    console.error("Update failed:", err);
+                                  }
+                                }}
+                                className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] rounded-lg hover:bg-emerald-500/20 transition-all font-mono uppercase"
+                              >
+                                Save
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setEditValue(m.content);
+                                  setIsEditing(false);
+                                }}
+                                className="px-3 py-1 bg-white/5 border border-white/10 text-slate-400 text-[10px] rounded-lg hover:bg-white/10 transition-all font-mono uppercase"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-slate-200 text-sm font-light tracking-wide flex-1">{m.content}</p>
+                              <div className="flex items-center gap-3 self-end sm:self-auto">
+                                <button
+                                  onClick={() => setIsEditing(true)}
+                                  className="text-[9px] text-slate-500 hover:text-pink-400 opacity-0 group-hover:opacity-100 transition-all font-mono"
+                                >
+                                  [ Edit ]
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await supabase.from("memories").update({ is_hidden: true }).eq("id", m.id);
+                                      addLog("SYSTEM: Record moved to Encrypted Vault.");
+                                      refreshData();
+                                    } catch (err) {
+                                      console.error("Hide failed:", err);
+                                    }
+                                  }}
+                                  className="text-[9px] text-slate-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all font-mono"
+                                >
+                                  [ Hide ]
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await supabase.from("memories").delete().eq("id", m.id);
+                                      addLog("SYSTEM: Neural record scrubbed from databank.");
+                                      refreshData();
+                                    } catch (err) {
+                                      console.error("Delete failed:", err);
+                                    }
+                                  }}
+                                  className="text-[9px] text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all font-mono"
+                                >
+                                  [ Delete ]
+                                </button>
+                                <span className="text-[7px] uppercase tracking-[0.4em] text-pink-500 animate-pulse select-none ml-2">Archive</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </motion.div>
             )}
@@ -411,39 +544,30 @@ export default function JarvisOS() {
           {/* SETTINGS PANEL */}
           <AnimatePresence>
             {activeTab === "SETTINGS" && (
-              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="absolute inset-0 bg-[#0d1117] z-[60] flex flex-col items-center p-8 lg:p-24 overflow-y-auto custom-scrollbar">
-                <div className="w-full max-w-3xl space-y-12 lg:y-20 pb-32">
-                  <section className="bg-[#0d1117] p-8 lg:p-10 rounded-[30px] lg:rounded-[40px] border border-white/[0.05] flex items-center justify-between">
-                    <div className="flex items-center gap-6 lg:gap-8">
-                      <img src={user?.imageUrl} className="w-16 h-16 lg:w-20 lg:h-20 rounded-3xl border-2 border-pink-500/20" alt="Admin" />
-                      <div><h2 className="text-white text-lg lg:text-xl font-light tracking-tight">{user?.fullName}</h2><p className="text-[10px] text-slate-500 font-mono mt-1">{user?.primaryEmailAddress?.emailAddress}</p></div>
+              <motion.div 
+                initial={{ opacity: 0, y: 30 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: 30 }} 
+                className="absolute inset-0 bg-[#0d1117] z-[60] flex flex-col items-center p-8 lg:p-24 overflow-y-auto custom-scrollbar"
+              >
+                <div className="w-full max-w-3xl space-y-12 lg:space-y-20 pb-32">
+                  <h1 className="text-white text-[10px] lg:text-[11px] tracking-[1.5em] uppercase opacity-40 font-black text-center">System Configuration</h1>
+                  <div className="space-y-8 bg-black/20 border border-white/[0.03] p-8 lg:p-12 rounded-[40px] backdrop-blur-3xl">
+                    <div className="space-y-2">
+                      <label className="text-[9px] uppercase tracking-[0.3em] font-bold text-slate-500">AI Core Designation</label>
+                      <input type="text" value={jarvisName} onChange={(e) => setJarvisName(e.target.value)} className="w-full bg-white/[0.02] border border-white/5 rounded-2xl px-5 py-4 text-xs text-zinc-100 focus:outline-none focus:border-pink-500/40 font-light tracking-wide" />
                     </div>
-                  </section>
-                  <section className="space-y-6 lg:space-y-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-                      <div className="space-y-3"><label className="text-[9px] uppercase tracking-widest text-slate-500 ml-2">AI Identifier</label><input value={jarvisName} onChange={(e) => setJarvisName(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 lg:p-5 text-white text-xs outline-none focus:border-pink-500/50 font-light tracking-widest" /></div>
-                      <div className="space-y-3"><label className="text-[9px] uppercase tracking-widest text-slate-500 ml-2">User Salutation</label><input value={userHandle} onChange={(e) => setUserHandle(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 lg:p-5 text-white text-xs outline-none focus:border-pink-500/50 font-light tracking-widest" /></div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] uppercase tracking-[0.3em] font-bold text-slate-500">User Addressing Protocol</label>
+                      <input type="text" value={userHandle} onChange={(e) => setUserHandle(e.target.value)} className="w-full bg-white/[0.02] border border-white/5 rounded-2xl px-5 py-4 text-xs text-zinc-100 focus:outline-none focus:border-pink-500/40 font-light tracking-wide" />
                     </div>
-                    <button onClick={saveSettings} className="w-full py-5 bg-pink-600/10 border border-pink-500/40 text-pink-500 text-[10px] lg:text-[11px] tracking-[0.6em] uppercase rounded-2xl hover:bg-pink-600/20 transition-all">Update Neural Parameters</button>
-                  </section>
-                  <section className="bg-[#0d1117] p-8 lg:p-10 rounded-[30px] lg:rounded-[40px] border border-white/[0.05]">
-                    <p className="text-[10px] text-slate-400 uppercase tracking-[0.6em] mb-6 font-bold">Encrypted Vault</p>
-                    {!showHidden ? (
-                      <input type="text" placeholder="TYPE 'YES' TO DECRYPT" value={unlockInput} onChange={(e) => { if(e.target.value === "YES") setShowHidden(true); }} className="w-full bg-black/40 border border-white/5 rounded-xl p-4 text-[10px] text-white outline-none text-center tracking-[0.8em]" />
-                    ) : (
-                      <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-4">
-                        {hiddenMemories.map(m => (
-                          <div key={m.id} className="p-4 border-b border-white/5 text-xs text-slate-400 font-light flex justify-between items-center">
-                            <span>{m.content}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
+                    <button onClick={saveSettings} className="w-full py-4 bg-pink-600/10 hover:bg-pink-600/20 border border-pink-500/30 text-pink-500 rounded-2xl text-[10px] uppercase tracking-[0.4em] font-mono transition-all">Synchronize Framework</button>
+                  </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
+
         </div>
       )}
     </main>
