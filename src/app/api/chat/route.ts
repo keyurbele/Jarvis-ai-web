@@ -4,64 +4,68 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { message, history = [], currentMemory = {} } = await req.json();
+    // Aligned destructured values with what the client actually sends (userName)
+    const { message, history = [], currentMemory = {}, userName } = await req.json();
 
     // 1. INTENT & CREATOR DETECTION
-   const msgLower = message.toLowerCase().trim();
+    const msgLower = message.toLowerCase().trim();
 
-const stopWords = [
-"stop",
-"shut up",
-"just listen",
-"listen",
-"be quiet",
-"silent",
-];
+    const stopWords = [
+      "stop",
+      "shut up",
+      "just listen",
+      "listen",
+      "be quiet",
+      "silent",
+    ];
 
-if (stopWords.includes(msgLower)) {
-return NextResponse.json({
-reply: "Understood, Sir.",
-memory: currentMemory,
-});
-}
+    if (stopWords.includes(msgLower)) {
+      return NextResponse.json({
+        reply: "Understood, Sir.",
+        memory: currentMemory,
+      });
+    }
 
-const isAskingAboutCreator =
-/(who (built|made|created|designed) (you|this|your)|who is (your creator|keyur))/.test(
-msgLower
-);
+    const isAskingAboutCreator =
+      /(who (built|made|created|designed) (you|this|your)|who is (your creator|keyur))/.test(
+        msgLower
+      );
 
-if (isAskingAboutCreator) {
-return NextResponse.json({
-reply:
-"I was engineered by Keyur. He designed my architecture, behavior, and the way I support users.",
-memory: currentMemory,
-});
-}
+    if (isAskingAboutCreator) {
+      return NextResponse.json({
+        reply:
+          "I was engineered by Keyur. He designed my architecture, behavior, and the way I support users.",
+        memory: currentMemory,
+      });
+    }
 
-let intent = "CASUAL";
-let lengthRule = "Keep it to 1-2 natural sentences.";
+    let intent = "CASUAL";
+    let lengthRule = "Keep it to 1-2 natural sentences.";
 
-if (/(how|why|explain|research|what)/.test(msgLower)) {
-intent = "FACTUAL";
-lengthRule = "Be clear, logical, and easy to understand.";
-} else if (/(fix|code|error|debug|build|programming)/.test(msgLower)) {
-intent = "TECHNICAL";
-lengthRule =
-"Give practical steps. Prioritize clarity over complexity.";
-} else if (
-/(feel|sad|happy|stress|bad|lonely|depressed|angry|upset|hurt|cry|crying|anxious|worried|scared)/.test(
-msgLower
-)
-) {
-intent = "EMOTIONAL";
-lengthRule =
-"Understand first. Validate feelings. Then offer support if needed.";
-}
+    if (/(how|why|explain|research|what)/.test(msgLower)) {
+      intent = "FACTUAL";
+      lengthRule = "Be clear, logical, and easy to understand.";
+    } else if (/(fix|code|error|debug|build|programming)/.test(msgLower)) {
+      intent = "TECHNICAL";
+      lengthRule =
+        "Give practical steps. Prioritize clarity over complexity.";
+    } else if (
+      /(feel|sad|happy|stress|bad|lonely|depressed|angry|upset|hurt|cry|crying|anxious|worried|scared)/.test(
+        msgLower
+      )
+    ) {
+      intent = "EMOTIONAL";
+      lengthRule =
+        "Understand first. Validate feelings. Then offer support if needed.";
+    }
 
-const SYSTEM_PROMPT = `
+    // Resolves identity to match either custom memory object configurations or the incoming user raw hook 
+    const determinedName = currentMemory.name || userName || "Sir";
+
+    const SYSTEM_PROMPT = `
 You are JARVIS.
 
-Address the user as ${currentMemory.name || "Sir"}.
+Address the user as ${determinedName}.
 
 IDENTITY:
 
